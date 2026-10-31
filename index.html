@@ -231,7 +231,7 @@ function item(t,m,type,solid){m.userData={type};t.add(m)}
 function build(t,idx){
  while(t.children.length)t.remove(t.children[0]);
  const [w,wi]=wAt(idx);
- t.userData.w=w;t.userData.idx=idx;t.userData.fl=[];
+ t.userData.w=w;t.userData.idx=idx;t.userData.fl=[];t.userData.col=null;
 
  const colT=w.deco==='water'&&wi%3===1&&idx>=3;
  if(!colT){const rm=new THREE.Mesh(G.plane,(w.deco==='tree'?jm().road:(w.mat||(w.mat=new THREE.MeshLambertMaterial({map:roadTex(w)})))));
