@@ -340,7 +340,7 @@ function update(dt){
  // collisions
  for(const t of tiles){
   if(Math.abs(t.position.z)>20)continue;
-  for(const p of t.userData.col||[])if(p.k>.4&&Math.abs(t.position.z+p.m.position.z)<2.9&&Math.abs(p.m.position.x-px)<1)return over();
+  for(const p of t.userData.col||[])if(p.k>.4&&py<.3&&Math.abs(t.position.z+p.m.position.z)<2.9&&Math.abs(p.m.position.x-px)<1)return over(); // airborne over a sunk plank is safe
   if(Math.abs(t.position.z)<=TL/2&&t.userData.w!==curW){curW=t.userData.w;$('wn').textContent=curW.n}
   for(const m of t.children){
    const ty=m.userData.type;if(!ty)continue;
