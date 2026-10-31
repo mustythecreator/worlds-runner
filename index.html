@@ -12,6 +12,7 @@ canvas{display:block}
 <div id="hud"><span id="sc">0 m</span><span id="wn"></span><span id="co">🪙 0</span></div>
 <div id="msg"><h1>Worlds Runner</h1><p>Swipe ← → to change lane</p><p>Swipe ↑ to jump · ↓ to slide</p><p><b>Tap to start</b></p></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 const W=[
  {n:'Jungle',sky:0x7fd6a0,road:0x6b4a2b,side:0x2e8b3a,deco:'tree'},
@@ -43,6 +44,30 @@ const P=new THREE.Group();
 const legL=mk('box',0x2b3a67,-.2,.4,0,.3,.8,.3),legR=mk('box',0x2b3a67,.2,.4,0,.3,.8,.3);
 P.add(mk('box',0xe8a33d,0,1.1,0,.8,1,.5),mk('box',0xffd7a8,0,1.85,0,.5,.5,.5),legL,legR);
 S.add(P);
+
+// Real character + animations (falls back to the boxes above if loading fails)
+let mixer=null;const acts={};let cur=null;
+const AN={run:'Sprint_Loop',jump:'Jump_Start',slide:'Roll',die:'Death01',idle:'Idle_Loop'},ONCE={jump:1,slide:1,die:1};
+function play(n){
+ const a=acts[n];if(!a||a===cur)return;
+ a.reset();a.setLoop(ONCE[n]?THREE.LoopOnce:THREE.LoopRepeat);a.clampWhenFinished=true;
+ a.fadeIn(.12).play();if(cur)cur.fadeOut(.12);cur=a;
+}
+const GL=new THREE.GLTFLoader();
+GL.load('assets/characters/superhero/Superhero_Male_FullBody.gltf',g=>{
+ const h=g.scene;h.rotation.y=Math.PI;
+ GL.load('assets/animations/UAL1_Standard_RM.glb',a=>{
+  mixer=new THREE.AnimationMixer(h);
+  for(const k in AN){
+   const c=THREE.AnimationClip.findByName(a.animations,AN[k]);if(!c)continue;
+   c.tracks=c.tracks.filter(t=>!t.name.startsWith('root.position'));
+   acts[k]=mixer.clipAction(c,h);
+  }
+  if(acts.slide)acts.slide.setDuration(.6);
+  P.children.slice().forEach(c=>P.remove(c));
+  P.add(h);play('idle');
+ },null,e=>console.warn('animations failed',e));
+},null,e=>console.warn('character failed',e));
 
 // Tiles
 const tiles=[];let tc=0;
@@ -97,11 +122,11 @@ const $=id=>document.getElementById(id);
 function reset(){
  tiles.forEach((t,i)=>{t.position.z=TL-i*TL;build(t,i)});
  tc=NT;v=14;dist=0;coins=0;lane=1;px=0;py=0;vy=0;sl=0;dead=false;
- P.position.set(0,0,0);P.scale.y=1;
+ P.position.set(0,0,0);P.scale.y=1;play('run');
  $('co').textContent='🪙 0';$('sc').textContent='0 m';
 }
 function over(){
- dead=true;run=false;deadAt=performance.now();
+ dead=true;run=false;deadAt=performance.now();play('die');
  $('msg').innerHTML='<h1>Crashed!</h1><p>'+Math.floor(dist)+' m · 🪙 '+coins+'</p><p><b>Tap to retry</b></p>';
  $('msg').style.display='flex';
 }
@@ -115,7 +140,8 @@ function update(dt){
  px+=(LX[lane]-px)*Math.min(1,dt*14);P.position.x=px;
  vy-=32*dt;py+=vy*dt;if(py<=0){py=0;vy=0}
  P.position.y=py;
- if(sl>0){sl-=dt;P.scale.y=.5}else P.scale.y=1;
+ if(sl>0)sl-=dt;P.scale.y=(sl>0&&!mixer)?.5:1;
+ play(sl>0?'slide':py>0?'jump':'run');
  ph+=dt*v*.8;
  const sw=py>0?0:Math.sin(ph)*.3;
  legL.position.z=sw;legR.position.z=-sw;
@@ -177,6 +203,7 @@ let last=performance.now();
  const dt=Math.min(.05,(now-last)/1000);last=now;
  if(run)update(dt);
  else if(!dead)for(const t of tiles)t.position.z+=0;
+ if(mixer)mixer.update(dt);
  cam(dt);
  R.render(S,C);
 })(last);
