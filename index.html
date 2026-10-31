@@ -22,7 +22,7 @@ const LX=[-2.2,0,2.2],TL=30,NT=7;
 // each world's length is its own 'len' in W above (in tiles of 30 m)
 function wAt(idx){let i=idx%W.reduce((a,b)=>a+b.len,0),k=0;while(i>=W[k].len){i-=W[k].len;k++}return[W[k],i]}
 // Jungle ground textures (files in assets/textures/). Swap names here to try another road or side.
-const ROAD='Ground086_2K-JPG',SIDE='Grass002_1K-JPG',TXL=new THREE.TextureLoader();let AX=8;
+const ROAD='Gravel025_2K-JPG',SIDE='Grass002_1K-JPG',TXL=new THREE.TextureLoader();let AX=8;
 function tx(f,rx,ry){const t=TXL.load('assets/textures/'+f);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rx,ry);t.anisotropy=AX;return t}
 function jm(){
  if(jm.r)return jm.r;
