@@ -55,6 +55,7 @@ function play(n){
 }
 const dbg=t=>{const d=document.getElementById('dbg');if(d)d.textContent=t};
 THREE.DefaultLoadingManager.onError=u=>dbg('✗ could not load: '+u);
+THREE.DefaultLoadingManager.setURLModifier(u=>u.replace('T_Eye_Normal_png.png','T_Eye_Normal.png').replace('T_Hair_1_BaseColor.png','T_Hair_1_BaseColor_png.png').replace('T_Hair_1_Normal_png.png','T_Hair_1_Normal.png'));
 const GL=new THREE.GLTFLoader();
 GL.load('assets/characters/superhero/Superhero_Male_FullBody.gltf',g=>{
  const h=g.scene;h.rotation.y=Math.PI;
