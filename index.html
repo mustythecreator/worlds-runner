@@ -19,6 +19,7 @@ const W=[
  {n:'City',sky:0x8fa8c8,road:0x45484f,side:0x6d7482,deco:'bld'}
 ];
 const LX=[-2.2,0,2.2],TL=30,NT=7;
+const WL=20; // tiles per world (20 x 30 m = 600 m)
 const R=new THREE.WebGLRenderer({antialias:true});
 R.setPixelRatio(Math.min(devicePixelRatio,2));
 document.body.prepend(R.domElement);
@@ -93,7 +94,7 @@ function item(t,m,type,solid){m.userData={type};t.add(m)}
 
 function build(t,idx){
  while(t.children.length)t.remove(t.children[0]);
- const w=W[Math.floor(idx/6)%W.length];
+ const w=W[Math.floor(idx/WL)%W.length];
  t.userData.w=w;t.userData.idx=idx;
  t.add(mk('plane',w.road,0,0,0,8,TL,1));
  t.add(mk('plane',w.side,-14,-.02,0,20,TL,1));
