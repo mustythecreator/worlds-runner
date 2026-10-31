@@ -26,8 +26,8 @@ const ROAD='Ground086_2K-JPG',SIDE='Grass002_1K-JPG',TXL=new THREE.TextureLoader
 function tx(f,rx,ry){const t=TXL.load('assets/textures/'+f);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rx,ry);t.anisotropy=AX;return t}
 function jm(){
  if(jm.r)return jm.r;
- const mat=(n,rx,ry)=>{const m=new THREE.MeshStandardMaterial({map:tx(n+'_Color.jpg',rx,ry),normalMap:tx(n+'_NormalDX.jpg',rx,ry),roughness:.95,metalness:0});m.normalScale.set(1,-1);return m};
- return jm.r={road:mat(ROAD,4,15),side:mat(SIDE,7,10)};
+ const mat=(n,rx,ry,c)=>{const m=new THREE.MeshStandardMaterial({map:tx(n+'_Color.jpg',rx,ry),normalMap:tx(n+'_NormalDX.jpg',rx,ry),roughness:.95,metalness:0});m.normalScale.set(1,-1);if(c)m.color.set(c);return m};
+ return jm.r={road:mat(ROAD,4,15,0xb08060),side:mat(SIDE,7,10)};
 }
 function roadTex(w){
  if(w.tex)return w.tex;
@@ -115,7 +115,7 @@ GL.load('assets/characters/superhero/Superhero_Male_FullBody.gltf',g=>{
 },null,e=>dbg('✗ character failed: '+(e&&e.message||'check file path/textures')));
 
 // Tiles
-const tiles=[];let tc=0;
+const tiles=[];let tc=0,since=9;
 for(let i=0;i<NT;i++){const t=new THREE.Group();S.add(t);tiles.push(t)}
 
 function item(t,m,type,solid){m.userData={type};t.add(m)}
@@ -148,11 +148,11 @@ function build(t,idx){
  // coins + obstacles
  if(idx<2)return;
  for(const z of[-12,-6,0,6,12]){
-  const r=Math.random(),l=Math.floor(Math.random()*3);
+  const r=Math.random(),l=Math.floor(Math.random()*3);since++;
   if(r<.4){
    for(let j=-1;j<=1;j++)item(t,mk('box',0xffd400,LX[l],1,z+j*1.5,.55,.55,.12),'coin');
   }else if(r<.78){
-   const o=Math.floor(Math.random()*3);
+   let o=Math.floor(Math.random()*3);if(o===1&&since<4)o=0;if(o===1)since=0; // overhead beams need a gap
    if(o===0){ // low obstacle: jump
     const m=w.deco==='tree'?mk('cyl',0x6b4423,LX[l],.45,z,.8,2,.8):mk('box',0xd9382b,LX[l],.45,z,2,.9,.5);
     if(w.deco==='tree')m.rotation.z=Math.PI/2;
