@@ -17,6 +17,7 @@ canvas{display:block}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
 <script>
 const W=[
  {n:'Jungle',len:32,ring:0x7dff9a,sky:0xaed8d2,road:0x6b4a2b,side:0x2e8b3a,deco:'tree'},
@@ -179,6 +180,41 @@ function cmat(){ // City textures (files in assets/textures/)
  return cmat.r={road:m('aerial_asphalt_01_diff_2k.jpg',3,11),side:m('garage_floor_diff_1k.jpg',7,10),walk:m('marble_rock_02_diff_1k.jpg',.7,10),dmg:tx('road_damaged_2_diff_2k.jpg',.3,.3),
   walls:[0xd8d0c4,0xc2b8a8,0xe4dccd].map(c=>new THREE.MeshStandardMaterial({map:wt,color:c,roughness:1}))};
 }
+// ---- Building Kit: modular walls/windows/roofs merged into 2 meshes per building (fast)
+const PB={},PBN=['Wall','Wall Window Square','Wall Window Round','Wall Doorway Square','Border High','Roof Flat Center','Column'];
+const BT=[0xffffff,0xf1d9c2,0xc9d6e3,0xe6e0b8].map(c=>c);
+function bvar(F,N){
+ bvar.c=bvar.c||{};const key=F+'x'+N;if(bvar.c[key])return bvar.c[key];
+ if(!PB['Wall']||!THREE.BufferGeometryUtils)return null;
+ const gc=[],gg=[];let mc=null,mg=null;
+ const add=(name,x,y,z,ry)=>{const e=PB[name];if(!e)return;
+  const m=new THREE.Matrix4().compose(new THREE.Vector3(x,y,z),new THREE.Quaternion().setFromEuler(new THREE.Euler(0,ry,0)),new THREE.Vector3(1,1,1));
+  e.updateMatrixWorld(true);
+  e.traverse(o=>{if(!o.isMesh)return;let g=o.geometry.clone();for(const k of Object.keys(g.attributes))if(!['position','normal','uv'].includes(k))g.deleteAttribute(k);
+   if(g.index)g=g.toNonIndexed();g.applyMatrix4(new THREE.Matrix4().copy(m).multiply(o.matrixWorld));
+   if(/glass/i.test(o.material.name)){gg.push(g);mg=mg||o.material}else{gc.push(g);mc=mc||o.material}})};
+ const dep=2,H=2.4;
+ for(let f=0;f<F;f++)for(let j=0;j<N;j++){
+  const z=(j-(N-1)/2)*2;let w='Wall';
+  if(f===0&&j===Math.floor(N/2))w='Wall Doorway Square';else if(Math.random()<.78)w=Math.random()<.2?'Wall Window Round':'Wall Window Square';
+  add(w,0,f*H,z,0);
+ }
+ for(let f=0;f<F;f++){add('Column',0,f*H,-N,0);add('Column',0,f*H,N,0);
+  for(let i=0;i<dep;i++)for(const sz of[-N,N])add('Wall',1+2*i,f*H,sz,Math.PI/2)}
+ for(let j=0;j<N;j++){const z=(j-(N-1)/2)*2;add('Border High',0,F*H,z,0);for(let i=0;i<dep;i++)add('Roof Flat Center',1+2*i,F*H,z,0)}
+ try{
+  const U=THREE.BufferGeometryUtils,v={c:gc.length?U.mergeBufferGeometries(gc):null,g:gg.length?U.mergeBufferGeometries(gg):null,mc,mg};
+  return bvar.c[key]=v;
+ }catch(e){console.warn('merge failed',e);return bvar.c[key]=null}
+}
+function bld(){ // one assembled building (or null if the kit isn't loaded)
+ const v=bvar(2+Math.floor(Math.random()*4),2+Math.floor(Math.random()*2));if(!v||!v.c)return null;
+ const g=new THREE.Group();
+ const tint=bld.t||(bld.t=BT.map(c=>{const m=v.mc.clone();m.color.setHex(c);return m}));
+ g.add(new THREE.Mesh(v.c,tint[Math.floor(Math.random()*tint.length)]));
+ if(v.g)g.add(new THREE.Mesh(v.g,v.mg));
+ return g;
+}
 function bgeo(h){ // building box with texture scaled to its height (cached by height)
  const k=Math.round(h/2);bgeo.c=bgeo.c||{};if(bgeo.c[k])return bgeo.c[k];
  const hh=k*2,g=new THREE.BoxGeometry(4,hh,4),uv=g.attributes.uv;for(let i=0;i<uv.count;i++)uv.setY(i,uv.getY(i)*hh/4);
@@ -256,12 +292,13 @@ function jdec(t,x,z,s){
 }
 const PN=['CommonTree_3','CommonTree_5','Pine_5','Bush_Common','Fern_1','Plant_1_Big','Grass_Wispy_Tall','Rock_Medium_1','Rock_Medium_3','Mushroom_Common','Flower_3_Group'];
 let pd=0;
+PBN.forEach(n=>GL.load('assets/city/'+encodeURIComponent(n)+'.glb',g=>{PB[n]=g.scene;fin()},null,()=>fin()));
 WN.forEach(n=>GL.load('assets/water/'+encodeURIComponent(n)+'.glb',g=>{PW[n]={s:g.scene,a:g.animations};fin()},null,()=>fin()));
 PN.forEach(n=>GL.load('assets/jungle/'+n+'.gltf',g=>{PR[n]=g.scene;fin()},null,()=>fin()));
-function fin(){if(++pd===PN.length+WN.length){dbg('✓ ready · jungle '+Object.keys(PR).length+'/'+PN.length+' · water '+Object.keys(PW).length+'/'+WN.length);if(!run)tiles.forEach(t=>build(t,t.userData.idx))}}
+function fin(){if(++pd===PN.length+WN.length+PBN.length){dbg('✓ ready · jungle '+Object.keys(PR).length+'/'+PN.length+' · water '+Object.keys(PW).length+'/'+WN.length+' · city '+Object.keys(PB).length+'/'+PBN.length);if(!run)tiles.forEach(t=>build(t,t.userData.idx))}}
 // ---- Runner skins: the Superhero (UAL animations) + dressed characters (own animations)
 const SK=[
- {id:'hero',name:'Hero',type:'ual',file:'assets/characters/superhero/Superhero_Male_FullBody.gltf'},
+ {id:'hero',name:'Hero',type:'ual',hair:['Hair_SimpleParted','Eyebrows_Regular'],file:'assets/characters/superhero/Superhero_Male_FullBody.gltf'},
  {id:'Casual',name:'Casual',type:'mod',file:'assets/characters/women/Casual.gltf'},
  {id:'Worker',name:'Worker',type:'mod',file:'assets/characters/women/Worker.gltf'},
  {id:'Suit',name:'Suit',type:'mod',file:'assets/characters/women/Suit.gltf'},
@@ -269,6 +306,13 @@ const SK=[
 ],AM={run:'Run',jump:'Roll',slide:'Roll',die:'Death',idle:'Idle',stumble:'HitRecieve'};
 let UALc=null,skinId='hero';
 try{skinId=new URLSearchParams(location.search).get('skin')||localStorage.getItem('skin')||'hero'}catch(e){}
+function addHair(h,n){ // static hair (origin at 0) locked to the Head bone
+ GL.load('assets/characters/hair/'+n+'.gltf',g=>{
+  const head=h.getObjectByName('Head');if(!head)return;h.updateMatrixWorld(true);
+  const m=g.scene;m.matrix.copy(new THREE.Matrix4().copy(head.matrixWorld).invert().multiply(h.matrixWorld));
+  m.matrix.decompose(m.position,m.quaternion,m.scale);head.add(m);
+ },null,()=>{});
+}
 function loadSkin(id){
  const sk=SK.find(x=>x.id===id)||SK[0];
  GL.load(sk.file,g=>{
@@ -279,7 +323,7 @@ function loadSkin(id){
    for(const k in M){let c=THREE.AnimationClip.findByName(clips,M[k]);if(!c)continue;c=c.clone();c.tracks=c.tracks.filter(t=>!/^[rR]oot\.position/.test(t.name));acts[k]=mixer.clipAction(c,h)}
    if(acts.slide)acts.slide.setDuration(.6);if(acts.stumble)acts.stumble.setDuration(.7);
    if(sk.type!=='ual'){if(acts.jump)acts.jump.setDuration(.75);if(acts.run)acts.run.timeScale=1.3}
-   P.children.slice().forEach(c=>P.remove(c));P.add(h);play(run?'run':'idle');
+   P.children.slice().forEach(c=>P.remove(c));P.add(h);if(sk.hair)sk.hair.forEach(n=>addHair(h,n));play(run?'run':'idle');
    skinId=sk.id;try{localStorage.setItem('skin',sk.id)}catch(e){}
    const b=document.getElementById('skin');if(b)b.textContent='Runner: '+sk.name+'  ▶';
    dbg('✓ runner ready: '+sk.name);
@@ -332,7 +376,9 @@ function build(t,idx){
    t.add(mk('cyl',0x5a3b1e,x,1.5,z,.6,3,.6));
    t.add(mk('cone',0x1f6b2a,x,4,z,3,3.5,3));
   }else{
-   const bm=new THREE.Mesh(bgeo(6+Math.random()*10),cmat().walls[k%3]);bm.position.set(x,bm.geometry.parameters.height/2,z);t.add(bm);
+   const b=bld();
+   if(b){b.position.set(s*(5.7+Math.random()*1.2),0,z);if(s<0)b.rotation.y=Math.PI;t.add(b)}
+   else{const bm=new THREE.Mesh(bgeo(6+Math.random()*10),cmat().walls[k%3]);bm.position.set(x,bm.geometry.parameters.height/2,z);t.add(bm)}
   }
  }
  // coins + obstacles
