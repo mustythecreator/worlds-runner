@@ -77,8 +77,7 @@ function wm(){ // moving water under the bridge
  return wm.m=new THREE.MeshLambertMaterial({map:t});
 }
 function wdec(t,x,z,s){const r=Math.random();
- if(r<.35)put(t,'Pine_5',s*(8+Math.random()*5),z,.9+Math.random()*.4,-.9);
- else if(r<.7)put(t,r<.52?'Rock_Medium_1':'Rock_Medium_3',x,z,1.2+Math.random()*.8,-.9);
+ if(r<.5)put(t,r<.25?'Rock_Medium_1':'Rock_Medium_3',x,z,1.2+Math.random()*1.2,-.9);
  else put(t,'Grass_Wispy_Tall',s*(4.6+Math.random()*1.2),z,1.6,-.9);
 }
 function collapse(t,w){ // bridge section: two lanes sink as you approach, one stays
@@ -284,12 +283,18 @@ function build(t,idx){
      item(t,m,'low');
     }
    }else if(o===1){ // overhead: slide
-    if(w.deco!=='bld'&&PR.CommonTree_5&&PR.Rock_Medium_3){ // fallen tree resting on two boulders: slide under it
+    if(w.deco==='tree'&&PR.CommonTree_5&&PR.Rock_Medium_3){ // fallen tree resting on two boulders: slide under it
      const g=new THREE.Group(),tr=trunk();
      tr.rotation.z=Math.PI/2;tr.scale.setScalar(1.5);tr.position.set(4.1,2,0);g.add(tr);
      for(const sx of[-4.4,4.4]){const rk=PR.Rock_Medium_3.clone(true);rk.scale.setScalar(.7);rk.position.set(sx,0,0);g.add(rk)}
      g.position.z=z;item(t,g,'high');
-    }else item(t,mk('box',w.deco==='tree'?0x5a3b1e:0x777777,0,2.2,z,7,.8,.8),'high');
+    }else if(w.deco==='water'){ // wooden gate on the bridge: slide under the beam
+     const g=new THREE.Group();
+     g.add(mk('box',0x5a3f26,0,2.2,0,7.4,.35,.35));
+     for(const sx of[-3.5,3.5])g.add(mk('box',0x4d3722,sx,1.2,0,.4,2.4,.4));
+     for(const sx of[-3.1,3.1]){const br=mk('box',0x4d3722,sx,1.9,0,.18,.9,.18);br.rotation.z=sx>0?.8:-.8;g.add(br)}
+     g.position.z=z;item(t,g,'high');
+    }else item(t,mk('box',0x777777,0,2.2,z,7,.8,.8),'high');
    }else if(o===3){ // tree roots: change lane (1 or 2 lanes, sometimes at opposite sides)
     for(const ln of[[0],[1],[2],[0,2],[0,1],[1,2]][Math.floor(Math.random()*6)]){
      const g=rootObj();g.scale.set(.55,.8,.55);g.position.set(LX[ln],0,z);item(t,g,'wall');
