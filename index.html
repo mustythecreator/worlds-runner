@@ -91,14 +91,15 @@ function crt(t,n,sc,k){ // animated sea creature
  const g=new THREE.Group();g.add(o);g.userData=k;t.add(g);t.userData.cr.push(g);
  if(e.a.length){const m=new THREE.AnimationMixer(o);m.clipAction(e.a[0]).play();t.userData.mx.push(m)}
 }
+function bob(t,o){if(!o)return;o.userData={kind:'bob',y:o.position.y,p:Math.random()};t.userData.cr.push(o)}
 function wprops(t,idx){
  const R=Math.random;
  for(const s of[-1,1]){
-  if(R()<.75)for(let i=0;i<4;i++)pw(t,R()<.6?'lily_large':'lily_small',s*(4.8+R()*3.2),(R()-.5)*28,4+R()*1.6,-.7);
-  if(R()<.4)pw(t,R()<.5?'boat-row-small':'boat-row-large',s*(6+R()*3),(R()-.5)*20,1,-1.05);
-  if(R()<.15)pw(t,R()<.5?'ship-small':'ship-wreck',s*(15+R()*5),(R()-.5)*20,1.4,-.9);
-  if(R()<.12)pw(t,['Dock Long','Dock Wide','Dock Stairs'][Math.floor(R()*3)],s*7.2,(R()-.5)*8,.3,-.9,0);
-  if(R()<.25)pw(t,R()<.5?'canoe':'log_large',s*(5+R()*3),(R()-.5)*24,R()<.5?2.6:3,-.85);
+  if(R()<.75)for(let i=0;i<4;i++)bob(t,pw(t,R()<.6?'lily_large':'lily_small',s*(4.8+R()*3.2),(R()-.5)*28,4+R()*1.6,-.7));
+  if(R()<.55)bob(t,pw(t,R()<.5?'boat-row-small':'boat-row-large',s*(6+R()*3),(R()-.5)*20,1.7,-1.0));
+  if(R()<.18)bob(t,pw(t,R()<.5?'ship-small':'ship-wreck',s*(15+R()*5),(R()-.5)*20,1.8,-.9));
+  if(R()<.12)pw(t,['Dock Long','Dock Wide','Dock Stairs'][Math.floor(R()*3)],s*7.2,(R()-.5)*8,.5,-.9,0);
+  if(R()<.35){const c=R()<.5;bob(t,pw(t,c?'canoe':'log_large',s*(5+R()*3),(R()-.5)*24,c?4.5:4,-.85))}
  }
  const F=fxm();
  for(const sx of[-3.9,3.9])for(const z of[-12,12]){ // torches on the rail posts
@@ -149,7 +150,8 @@ function potV(){ // rough patched-and-broken road with a pothole (cached variant
 function fx(tm){
  if(wm.m){wm.m.map.offset.set(tm*.015,tm*.06);wm.m2.map.offset.set(-tm*.02,tm*.035)}
  for(const t of tiles)for(const c of t.userData.cr||[]){const k=c.userData,u=(tm*k.sp+k.p)%1;
-  if(k.kind==='jump'){c.position.set(k.x,-1.7+Math.sin(u*Math.PI)*2.6,k.z);c.rotation.set(-Math.cos(u*Math.PI)*.8,k.ry,0,'YXZ')}
+  if(k.kind==='bob'){c.position.y=k.y+Math.sin(tm*1.6+k.p*6)*.07;c.rotation.z=Math.sin(tm*1.2+k.p*5)*.05;c.rotation.x=Math.sin(tm*.9+k.p*4)*.03}
+  else if(k.kind==='jump'){c.position.set(k.x,-1.7+Math.sin(u*Math.PI)*2.6,k.z);c.rotation.set(-Math.cos(u*Math.PI)*.8,k.ry,0,'YXZ')}
   else{c.position.set(k.x,k.y,k.z+(u-.5)*10);c.rotation.set(0,k.ry,0)}}for(const t of tiles)for(const f of t.userData.fl||[]){const k=f.userData;
  if(k.k==='f'){const q=k.s*(1+.22*Math.sin(tm*12+k.p*9));f.scale.set(q*.6,q*1.15,1);f.position.y=k.y+Math.sin(tm*9+k.p*7)*.05}
  else if(k.k==='e'){const u=(tm*k.v+k.p)%1,q=.3*(1-u);f.position.set(k.x+Math.sin(tm*3+k.p*9)*.25,k.y+u*2.4,k.z);f.scale.set(q,q,1)}
