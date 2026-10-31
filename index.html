@@ -7,16 +7,19 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;touch-action:none
 canvas{display:block}
 #hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:calc(env(safe-area-inset-top,0px) + 14px) 18px 0;color:#fff;font-weight:700;font-size:20px;text-shadow:0 2px 4px #000;pointer-events:none}
 #msg{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;text-align:center;background:rgba(0,0,0,.5);text-shadow:0 2px 4px #000}
+#st{position:fixed;top:24%;left:0;right:0;text-align:center;color:#ffb36b;font:700 24px sans-serif;text-shadow:0 2px 6px #000;opacity:0;transition:opacity .15s;pointer-events:none}
 #msg h1{font-size:36px;margin:0 0 10px}#msg p{margin:4px 0;font-size:17px}
 </style></head><body>
 <div id="hud"><span id="sc">0 m</span><span id="wn"></span><span id="co">🪙 0</span></div>
+<div id="st">Stumbled! Avoid the next one</div>
 <div id="msg"><h1>Worlds Runner</h1><p>Swipe ← → to change lane</p><p>Swipe ↑ to jump · ↓ to slide</p><p><b>Tap to start</b></p><p id="dbg" style="font-size:13px;opacity:.85;max-width:90%;word-break:break-all">v2 · loading character…</p></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 const W=[
  {n:'Jungle',len:24,ring:0x7dff9a,sky:0x5f9c78,road:0x6b4a2b,side:0x2e8b3a,deco:'tree'},
- {n:'City',len:16,ring:0x7ab8ff,sky:0x8fa8c8,road:0x45484f,side:0x6d7482,deco:'bld'}
+ {n:'City',len:16,ring:0x7ab8ff,sky:0x8fa8c8,road:0x45484f,side:0x6d7482,deco:'bld'},
+ {n:'Water',len:16,ring:0x6fe0ff,sky:0x9fd3e6,road:0x6a4d2e,side:0x2a6f9a,deco:'water'}
 ];
 const LX=[-2.2,0,2.2],TL=30,NT=7;
 // each world's length is its own 'len' in W above (in tiles of 30 m)
@@ -59,7 +62,58 @@ function burnLog(){ // burning log pile: jump over it
  for(let i=0;i<2;i++)add(F.sk,'s',{},0,1.4,0,1);
  return[g,fl];
 }
-function fx(tm){for(const t of tiles)for(const f of t.userData.fl||[]){const k=f.userData;
+function woodTex(){
+ const c=document.createElement('canvas');c.width=256;c.height=960;const g=c.getContext('2d');
+ for(let i=0;i<30;i++){const sh=60+Math.random()*30;g.fillStyle='rgb('+(sh+45)+','+(sh+20)+','+(sh-5)+')';g.fillRect(0,i*32,256,30);g.fillStyle='rgba(0,0,0,.55)';g.fillRect(0,i*32+30,256,2);
+  for(let k=0;k<7;k++){g.fillStyle='rgba(0,0,0,.12)';g.fillRect(Math.random()*256,i*32,1.5,30)}}
+ const t=new THREE.CanvasTexture(c);t.anisotropy=4;return t;
+}
+function wm(){ // moving water under the bridge
+ if(wm.m)return wm.m;
+ const c=document.createElement('canvas');c.width=c.height=256;const g=c.getContext('2d');
+ g.fillStyle='#2c7fa8';g.fillRect(0,0,256,256);g.strokeStyle='rgba(255,255,255,.3)';g.lineWidth=2;
+ for(let i=0;i<46;i++){const x=Math.random()*226,y=Math.random()*256;g.beginPath();g.moveTo(x,y);g.quadraticCurveTo(x+14,y-6,x+28,y);g.stroke()}
+ const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(8,6);
+ return wm.m=new THREE.MeshLambertMaterial({map:t});
+}
+function wdec(t,x,z,s){const r=Math.random();
+ if(r<.35)put(t,'Pine_5',s*(8+Math.random()*5),z,.9+Math.random()*.4,-.9);
+ else if(r<.7)put(t,r<.52?'Rock_Medium_1':'Rock_Medium_3',x,z,1.2+Math.random()*.8,-.9);
+ else put(t,'Grass_Wispy_Tall',s*(4.6+Math.random()*1.2),z,1.6,-.9);
+}
+function collapse(t,w){ // bridge section: two lanes sink as you approach, one stays
+ const ls=Math.floor(Math.random()*3);t.userData.col=[];
+ if(!w.pm){const pt=roadTex(w).clone();pt.needsUpdate=true;pt.wrapS=pt.wrapT=THREE.RepeatWrapping;pt.repeat.set(.275,.2);w.pm=new THREE.MeshLambertMaterial({map:pt})}
+ for(let ln=0;ln<3;ln++)for(let i=0;i<5;i++){
+  const m=new THREE.Mesh(G.pan||(G.pan=new THREE.BoxGeometry(2.1,.25,5.9)),w.pm);m.position.set(LX[ln],-.12,-12+i*6);t.add(m);
+  if(ln!==ls)t.userData.col.push({m,k:0,on:0,r:(Math.random()<.5?-1:1)*(.4+Math.random()*.5)});
+ }
+ for(const sx of[-3.6,3.6])t.add(mk('box',0x5a3f26,sx,-.12,0,.8,.25,TL));
+ for(let i=-2;i<=2;i++)item(t,mk('box',0xffd400,LX[ls],1,i*6,.55,.55,.12),'coin');
+}
+function colUpd(dt){for(const t of tiles)for(const p of t.userData.col||[]){
+ if(!p.on&&t.position.z+p.m.position.z>-34)p.on=1;
+ if(p.on&&p.k<1){p.k=Math.min(1,p.k+dt*1.8);p.m.position.y=-.12-p.k*1.6;p.m.rotation.x=p.r*p.k;p.m.rotation.z=p.r*.5*p.k}
+}}
+function potV(){ // rough patched-and-broken road with a pothole (cached variants)
+ if(potV.v)return potV.v;
+ const jag=(rx,rz,n,j)=>{const sh=new THREE.Shape();for(let i=0;i<n;i++){const a=i/n*6.283,r=1-j/2+Math.random()*j,x=Math.cos(a)*rx*r,y=Math.sin(a)*rz*r;i?sh.lineTo(x,y):sh.moveTo(x,y)}sh.closePath();return new THREE.ShapeGeometry(sh)};
+ let lay=0;
+ const fl=(g,c,y,x,z)=>{lay++;const m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({color:c,polygonOffset:true,polygonOffsetFactor:-lay,polygonOffsetUnits:-lay}));m.rotation.x=-Math.PI/2;m.position.set(x||0,y,z||0);return m};
+ potV.v=[0,1,2,3,4].map(()=>{
+  const g=new THREE.Group();lay=0;
+  g.add(fl(jag(1.05,1.5,16,.18),0x303136,.014));
+  g.add(fl(jag(.9,1.2,14,.25),0x232428,.018,.05,-.1));
+  g.add(fl(jag(.78,.95,12,.4),0x4b3a2b,.024,0,.05));
+  g.add(fl(jag(.6,.75,11,.45),0x15110d,.03,0,.05));
+  g.add(fl(jag(.3,.4,9,.5),0x050505,.034,.05,.1));
+  for(let i=0;i<7;i++){const a=Math.random()*6.28,d=.75+Math.random()*.35,m=mk('box',0x777a82,Math.cos(a)*d,.06,Math.sin(a)*d*1.2,.12+Math.random()*.14,.08+Math.random()*.1,.12+Math.random()*.14);m.rotation.y=Math.random()*3;g.add(m)}
+  for(let i=0;i<3;i++){const c=fl(new THREE.PlaneGeometry(.05,1+Math.random()*.8),0x0a0a0c,.02,(Math.random()-.5)*1.6,(Math.random()-.5)*2);c.rotation.z=Math.random()*3;g.add(c)}
+  return g;
+ });
+ return potV.v;
+}
+function fx(tm){if(wm.m)wm.m.map.offset.set(tm*.015,tm*.06);for(const t of tiles)for(const f of t.userData.fl||[]){const k=f.userData;
  if(k.k==='f'){const q=k.s*(1+.22*Math.sin(tm*12+k.p*9));f.scale.set(q*.6,q*1.15,1);f.position.y=k.y+Math.sin(tm*9+k.p*7)*.05}
  else if(k.k==='e'){const u=(tm*k.v+k.p)%1,q=.3*(1-u);f.position.set(k.x+Math.sin(tm*3+k.p*9)*.25,k.y+u*2.4,k.z);f.scale.set(q,q,1)}
  else if(k.k==='s'){const u=(tm*.3+k.p)%1,q=.9+u*1.5;f.position.set(k.x+u*.4,k.y+u*2.8,k.z);f.scale.set(q,q,1);f.material.opacity=.32*(1-u)}
@@ -81,6 +135,7 @@ function trunk(){ // fallen-tree trunk: the CommonTree_5 model with its leaves r
 }
 function roadTex(w){
  if(w.tex)return w.tex;
+ if(w.deco==='water')return w.tex=woodTex();
  const jg=w.deco==='tree',c=document.createElement('canvas');c.width=256;c.height=960;const g=c.getContext('2d');
  g.fillStyle='#'+w.road.toString(16).padStart(6,'0');g.fillRect(0,0,256,960);
  for(let i=0;i<2600;i++){g.fillStyle=(Math.random()<.5?'rgba(255,255,255,':'rgba(0,0,0,')+Math.random()*.18+')';const z=2+Math.random()*(jg?10:5);g.fillRect(Math.random()*256,Math.random()*960,z,z*(jg?1:1.6))}
@@ -126,7 +181,7 @@ S.add(P);
 
 // Real character + animations (falls back to the boxes above if loading fails)
 let mixer=null;const acts={};let cur=null;
-const AN={run:'Sprint_Loop',jump:'Jump_Start',slide:'Roll',die:'Death01',idle:'Idle_Loop'},ONCE={jump:1,slide:1,die:1};
+const AN={run:'Sprint_Loop',jump:'Jump_Start',slide:'Roll',die:'Death01',idle:'Idle_Loop',stumble:'Hit_Chest'},ONCE={jump:1,slide:1,die:1,stumble:1};
 function play(n){
  const a=acts[n];if(!a||a===cur)return;
  a.reset();a.setLoop(ONCE[n]?THREE.LoopOnce:THREE.LoopRepeat);a.clampWhenFinished=true;
@@ -141,7 +196,7 @@ THREE.DefaultLoadingManager.setURLModifier(u=>u.replace('T_Eye_Normal_png.png','
 const GL=new THREE.GLTFLoader();
 // Jungle props (Quaternius Stylized Nature MegaKit); old shapes stay as fallback
 const PR={};
-function put(t,n,x,z,sc){const o=PR[n]&&PR[n].clone(true);if(!o)return;o.position.set(x,0,z);o.scale.setScalar(sc);o.rotation.y=Math.random()*6.28;t.add(o)}
+function put(t,n,x,z,sc,y){const o=PR[n]&&PR[n].clone(true);if(!o)return;o.position.set(x,y||0,z);o.scale.setScalar(sc);o.rotation.y=Math.random()*6.28;t.add(o)}
 const TR=['CommonTree_3','CommonTree_5','Pine_5'],UG=[['Bush_Common',1.3],['Fern_1',.4],['Plant_1_Big',.9],['Rock_Medium_1',.5],['Rock_Medium_3',.45],['Grass_Wispy_Tall',1.2],['Flower_3_Group',1],['Mushroom_Common',2]];
 function jdec(t,x,z,s){
  put(t,TR[Math.floor(Math.random()*3)],x,z,.9+Math.random()*.5);
@@ -161,7 +216,7 @@ GL.load('assets/characters/superhero/Superhero_Male_FullBody.gltf',g=>{
    c.tracks=c.tracks.filter(t=>!t.name.startsWith('root.position'));
    acts[k]=mixer.clipAction(c,h);
   }
-  if(acts.slide)acts.slide.setDuration(.6);
+  if(acts.slide)acts.slide.setDuration(.6);if(acts.stumble)acts.stumble.setDuration(.7);
   P.children.slice().forEach(c=>P.remove(c));
   P.add(h);play('idle');dbg('v2 · ✓ character ready');
  },null,e=>dbg('✗ animations failed: '+(e&&e.message||'check file path')));
@@ -178,13 +233,16 @@ function build(t,idx){
  const [w,wi]=wAt(idx);
  t.userData.w=w;t.userData.idx=idx;t.userData.fl=[];
 
- const rm=new THREE.Mesh(G.plane,(w.deco==='tree'?jm().road:(w.mat||(w.mat=new THREE.MeshLambertMaterial({map:roadTex(w)})))));
- rm.rotation.x=-Math.PI/2;rm.scale.set(8,TL,1);t.add(rm);
+ const colT=w.deco==='water'&&wi%3===1&&idx>=3;
+ if(!colT){const rm=new THREE.Mesh(G.plane,(w.deco==='tree'?jm().road:(w.mat||(w.mat=new THREE.MeshLambertMaterial({map:roadTex(w)})))));
+ rm.rotation.x=-Math.PI/2;rm.scale.set(8,TL,1);t.add(rm)}
+ if(w.deco==='water')for(const sx of[-3.9,3.9]){t.add(mk('box',0x4d3722,sx,.8,0,.12,.1,TL));for(const z of[-12,0,12])t.add(mk('box',0x4d3722,sx,.45,z,.14,.9,.14))}
  if(wi===0&&idx>0){ // glowing gate marks the start of a new world
   const r=new THREE.Mesh(G.ring||(G.ring=new THREE.TorusGeometry(5,.15,8,40)),w.rmat||(w.rmat=new THREE.MeshBasicMaterial({color:w.ring})));
   r.position.set(0,2.5,14);t.add(r);
  }
- for(const sx of[-14,14]){const m=mk('plane',w.side,sx,-.02,0,20,TL,1);if(w.deco==='tree')m.material=jm().side;t.add(m)}
+ if(w.deco==='water'){const wp=new THREE.Mesh(G.plane,wm());wp.rotation.x=-Math.PI/2;wp.position.y=-.9;wp.scale.set(44,TL,1);t.add(wp)}
+ else for(const sx of[-14,14]){const m=mk('plane',w.side,sx,-.02,0,20,TL,1);if(w.deco==='tree')m.material=jm().side;t.add(m)}
  if(w.deco!=='tree'){t.add(mk('plane',0xdddddd,-1.1,.01,0,.08,TL,1));t.add(mk('plane',0xdddddd,1.1,.01,0,.08,TL,1))}
 
  if(w.deco==='tree')for(let i=0;i<2;i++){
@@ -195,7 +253,8 @@ function build(t,idx){
  // side decor
  for(const s of[-1,1])for(let k=0;k<4;k++){
   const z=-12+k*8+Math.random()*3,x=s*(6+Math.random()*5);
-  if(w.deco==='tree'&&PR.CommonTree_3){jdec(t,x,z,s)}
+  if(w.deco==='water'){wdec(t,x,z,s)}
+  else if(w.deco==='tree'&&PR.CommonTree_3){jdec(t,x,z,s)}
   else if(w.deco==='tree'){
    t.add(mk('cyl',0x5a3b1e,x,1.5,z,.6,3,.6));
    t.add(mk('cone',0x1f6b2a,x,4,z,3,3.5,3));
@@ -206,14 +265,17 @@ function build(t,idx){
  }
  // coins + obstacles
  if(idx<2)return;
+ if(colT){collapse(t,w);return}
+ let hp=0;
  for(const z of[-12,-6,0,6,12]){
+  if(hp){hp=0;continue}
   const r=Math.random(),l=Math.floor(Math.random()*3);since++;
   if(r<.4){
    for(let j=-1;j<=1;j++)item(t,mk('box',0xffd400,LX[l],1,z+j*1.5,.55,.55,.12),'coin');
   }else if(r<.7+.16*Math.min(1,dist/4000)&&!(idx<3&&-(t.position.z+z)<35)){ // no obstacles in the first ~35 m
-   const q=Math.random();let o=w.deco==='tree'?(q<.22?0:q<.34?1:q<.56?2:q<.8?3:4):(q<.35?0:q<.55?1:2);if(o===1&&since<4)o=0;if(o===1)since=0; // overhead beams need a gap
+   const q=Math.random();let o=w.deco==='tree'?(q<.28?0:q<.42?1:q<.72?3:4):w.deco==='water'?(q<.5?0:1):(q<.35?0:q<.55?1:2);if(o===1&&since<4)o=0;if(o===1)since=0; // overhead beams need a gap
    if(o===0){ // low obstacle: jump
-    if(w.deco==='tree'&&PR.Rock_Medium_1&&PR.Rock_Medium_3){ // boulder: jump over it
+    if(w.deco!=='bld'&&PR.Rock_Medium_1&&PR.Rock_Medium_3){ // boulder: jump over it
      const rk=PR[Math.random()<.5?'Rock_Medium_1':'Rock_Medium_3'].clone(true);
      rk.scale.setScalar(.5);rk.position.set(LX[l],.1,z);rk.rotation.y=Math.random()*6.3;item(t,rk,'low');
     }else{
@@ -222,7 +284,7 @@ function build(t,idx){
      item(t,m,'low');
     }
    }else if(o===1){ // overhead: slide
-    if(w.deco==='tree'&&PR.CommonTree_5&&PR.Rock_Medium_3){ // fallen tree resting on two boulders: slide under it
+    if(w.deco!=='bld'&&PR.CommonTree_5&&PR.Rock_Medium_3){ // fallen tree resting on two boulders: slide under it
      const g=new THREE.Group(),tr=trunk();
      tr.rotation.z=Math.PI/2;tr.scale.setScalar(1.5);tr.position.set(4.1,2,0);g.add(tr);
      for(const sx of[-4.4,4.4]){const rk=PR.Rock_Medium_3.clone(true);rk.scale.setScalar(.7);rk.position.set(sx,0,0);g.add(rk)}
@@ -235,21 +297,21 @@ function build(t,idx){
    }else if(o===4){ // burning log pile: jump over it
     const ln=Math.floor(Math.random()*3),r=burnLog(),g=r[0];
     r[1].forEach(f=>t.userData.fl.push(f));g.position.set(LX[ln],0,z);item(t,g,'fire');
-   }else{ // pothole / mud pit: jump
-    const jg=w.deco==='tree',hg=new THREE.Group(),rim=new THREE.Mesh(G.rim||(G.rim=new THREE.TorusGeometry(1,.1,6,18)),M(jg?0x6b5a3a:0x8a8d94));
-    hg.add(mk('cyl',jg?0x2a1d0e:0x0b0b0d,0,.02,0,2,.05,2));rim.rotation.x=Math.PI/2;rim.position.y=.06;hg.add(rim);
-    hg.position.set(LX[l],0,z);item(t,hg,'hole');
-   }
+   }else if(w.deco==='bld'){ // city pothole: stumble; a second one before you recover crashes
+    const put1=(ln,zz)=>{const g=potV()[Math.floor(Math.random()*5)].clone(true);g.scale.x=Math.random()<.5?-1:1;g.position.set(LX[ln],0,zz);item(t,g,'hole')};
+    put1(l,z);
+    if(Math.random()<.45&&z<=6){put1((l+1+Math.floor(Math.random()*2))%3,z+6);hp=1}
+   }else item(t,mk('box',0x6b4423,LX[l],.45,z,1.6,.9,.8),'low');
   }
  }
 }
 
 // Game state
-let jb=0,run=false,dead=false,v,dist,coins,lane,px,py,vy,sl,ph=0,curW=null,deadAt=0;
+let stm=0,jb=0,run=false,dead=false,v,dist,coins,lane,px,py,vy,sl,ph=0,curW=null,deadAt=0;
 const $=id=>document.getElementById(id);
 function reset(){
  tiles.forEach((t,i)=>{t.position.z=TL-i*TL;build(t,i)});
- jb=0;tc=NT;v=14;dist=0;coins=0;lane=1;px=0;py=0;vy=0;sl=0;dead=false;
+ stm=0;jb=0;tc=NT;v=14;dist=0;coins=0;lane=1;px=0;py=0;vy=0;sl=0;dead=false;
  P.position.set(0,0,0);P.scale.y=1;play('run');
  $('co').textContent='🪙 0';$('sc').textContent='0 m';
 }
@@ -260,7 +322,8 @@ function over(){
 }
 function update(dt){
  v=Math.min(Math.min(46,34+dist/500),v+dt*.3);dist+=v*dt;
- for(const t of tiles)t.position.z+=v*dt;
+ stm=Math.max(0,stm-dt);const ve=stm>0?v*(.5+.5*(1-stm/1.3)):v;dist+=ve*dt-v*dt;
+ for(const t of tiles)t.position.z+=ve*dt;colUpd(dt);
  for(const t of tiles)if(t.position.z>45){
   const m=Math.min(...tiles.map(x=>x.position.z));
   t.position.z=m-TL;build(t,tc++);
@@ -269,13 +332,15 @@ function update(dt){
  jb-=dt;vy-=32*dt;py+=vy*dt;if(py<=0){py=0;vy=0;if(jb>0){jb=0;jump()}}
  P.position.y=py;
  if(sl>0)sl-=dt;P.scale.y=(sl>0&&!mixer)?.5:1;
- play(sl>0?'slide':py>0?'jump':'run');
+ play(sl>0?'slide':py>0?'jump':stm>.7?'stumble':'run');
+ $('st').style.opacity=stm>0?1:0;
  ph+=dt*v*.8;
  const sw=py>0?0:Math.sin(ph)*.3;
  legL.position.z=sw;legR.position.z=-sw;
  // collisions
  for(const t of tiles){
   if(Math.abs(t.position.z)>20)continue;
+  for(const p of t.userData.col||[])if(p.k>.4&&Math.abs(t.position.z+p.m.position.z)<2.9&&Math.abs(p.m.position.x-px)<1)return over();
   if(Math.abs(t.position.z)<=TL/2&&t.userData.w!==curW){curW=t.userData.w;$('wn').textContent=curW.n}
   for(const m of t.children){
    const ty=m.userData.type;if(!ty)continue;
@@ -285,7 +350,7 @@ function update(dt){
    if(ty==='coin'){if(same&&py<2){m.userData.type=null;m.visible=false;coins++;$('co').textContent='🪙 '+coins}}
    else if(ty==='high'){if(sl<=0)return over()}
    else if(ty==='low'){if(same&&py<.8)return over()}
-   else if(ty==='hole'){if(same&&py<.15)return over()}
+   else if(ty==='hole'){if(same&&py<.15){m.userData.type='holed';if(stm>0)return over();stm=1.3}}
    else if(ty==='wall'){if(same&&py<2.2)return over()}
    else if(ty==='fire'){if(same&&py<1.3)return over()}
   }
@@ -293,7 +358,7 @@ function update(dt){
  $('sc').textContent=Math.floor(dist)+' m';
 }
 function cam(dt){
- C.position.set(px*.5,4.2,7);C.lookAt(px*.3,1.5,-8);
+ const sh=stm>0?.14:0;C.position.set(px*.5+(Math.random()-.5)*sh,4.2+(Math.random()-.5)*sh,7);C.lookAt(px*.3,1.5,-8);
  let aw=curW;for(const t of tiles)if(t.position.z<=-45&&t.position.z>-75)aw=t.userData.w||aw;
  if(aw){
   const col=new THREE.Color(aw.sky);
