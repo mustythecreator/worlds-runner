@@ -37,15 +37,35 @@ function gm(){ // soft gravel patches blended into the mud road
  const m=new THREE.MeshStandardMaterial({map:tx('Gravel025_2K-JPG_Color.jpg',1,1),alphaMap:new THREE.CanvasTexture(c),transparent:true,depthWrite:false,roughness:1,color:0xb09478,polygonOffset:true,polygonOffsetFactor:-2});
  m.normalScale.set(1,-1);return gm.m=m;
 }
-function ft(){ // flame + glow sprites (drawn in code)
+function ft(){ // teardrop flame + soft glow sprites (drawn in code)
  if(ft.f)return ft;
- const c=document.createElement('canvas');c.width=c.height=64;const g=c.getContext('2d');
- const r=g.createRadialGradient(32,40,2,32,36,30);r.addColorStop(0,'rgba(255,245,170,1)');r.addColorStop(.35,'rgba(255,150,30,.85)');r.addColorStop(1,'rgba(200,40,0,0)');
- g.fillStyle=r;g.fillRect(0,0,64,64);
- const t=new THREE.CanvasTexture(c),o={map:t,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending};
- ft.f=new THREE.SpriteMaterial(o);ft.g=new THREE.SpriteMaterial(Object.assign({opacity:.3},o));return ft;
+ const c=document.createElement('canvas');c.width=64;c.height=128;const g=c.getContext('2d');
+ g.shadowColor='rgba(255,120,0,.9)';g.shadowBlur=8;
+ const lg=g.createLinearGradient(0,118,0,8);lg.addColorStop(0,'rgba(255,240,160,1)');lg.addColorStop(.4,'rgba(255,150,20,.95)');lg.addColorStop(1,'rgba(220,40,0,0)');
+ g.fillStyle=lg;g.beginPath();g.moveTo(32,8);g.bezierCurveTo(52,40,58,70,48,98);g.bezierCurveTo(42,118,22,118,16,98);g.bezierCurveTo(6,70,12,40,32,8);g.fill();
+ const d=document.createElement('canvas');d.width=d.height=64;const h=d.getContext('2d');
+ const r=h.createRadialGradient(32,32,2,32,32,30);r.addColorStop(0,'rgba(255,170,60,1)');r.addColorStop(1,'rgba(255,80,0,0)');h.fillStyle=r;h.fillRect(0,0,64,64);
+ const o={transparent:true,depthWrite:false,blending:THREE.AdditiveBlending};
+ ft.f=new THREE.SpriteMaterial(Object.assign({map:new THREE.CanvasTexture(c)},o));
+ ft.g=new THREE.SpriteMaterial(Object.assign({map:new THREE.CanvasTexture(d),opacity:.22},o));return ft;
 }
-function fx(tm){for(const t of tiles)for(const f of t.userData.fl||[]){const k=f.userData;f.position.y=k.y+Math.sin(tm*9+k.p)*.12;const s=k.s*(1+.18*Math.sin(tm*13+k.p*2));f.scale.set(s*.75,s,1)}}
+function fx(tm){for(const t of tiles)for(const f of t.userData.fl||[]){const k=f.userData;f.position.y=k.y+Math.sin(tm*9+k.p)*.08;const q=k.s*(1+.2*Math.sin(tm*13+k.p*2));f.scale.set(q*.5,q,1)}}
+function vineG(){ // thin wavy vine strands, shared geometry
+ if(vineG.v)return vineG.v;
+ vineG.b=new THREE.CylinderGeometry(.1,.14,3.4,6);
+ return vineG.v=[0,1,2,3].map(k=>{const p=[];for(let i=0;i<9;i++)p.push(new THREE.Vector3(Math.sin(i*1.2+k*1.7)*.14,6.4-5.25*i/8,Math.cos(i*.9+k)*.08));return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(p),18,.05,5,false)});
+}
+function rootObj(){ // tree stump gripped by arching roots (unjumpable)
+ if(!rootObj.s){
+  const bt=TXL.load('assets/jungle/Bark_NormalTree.png');bt.wrapS=bt.wrapT=THREE.RepeatWrapping;bt.repeat.set(3,1);
+  rootObj.m=new THREE.MeshStandardMaterial({map:bt,roughness:1});
+  rootObj.s=new THREE.CylinderGeometry(.5,.85,2.4,12);rootObj.a=new THREE.TorusGeometry(1,.2,8,14,Math.PI);
+ }
+ const g=new THREE.Group(),st=new THREE.Mesh(rootObj.s,[rootObj.m,M(0x9a7a50),rootObj.m]);
+ st.position.y=1.2;g.add(st);
+ for(let i=0;i<6;i++){const a=new THREE.Mesh(rootObj.a,rootObj.m);a.rotation.y=i*Math.PI/3+Math.random()*.4;a.scale.set(1+Math.random()*.3,.9+Math.random()*.5,1);g.add(a)}
+ return g;
+}
 function trunk(){ // fallen-tree trunk: the CommonTree_5 model with its leaves removed
  if(!trunk.o){const o=PR.CommonTree_5.clone(true),d=[];o.traverse(c=>{if(c.isMesh&&c.material&&/Leaves/.test(c.material.name))d.push(c)});d.forEach(c=>c.parent.remove(c));trunk.o=o}
  return trunk.o.clone(true);
@@ -199,18 +219,16 @@ function build(t,idx){
      for(const sx of[-4.4,4.4]){const rk=PR.Rock_Medium_3.clone(true);rk.scale.setScalar(.7);rk.position.set(sx,0,0);g.add(rk)}
      g.position.z=z;item(t,g,'high');
     }else item(t,mk('box',w.deco==='tree'?0x5a3b1e:0x777777,0,2.2,z,7,.8,.8),'high');
-   }else if(o===3&&PR.CommonTree_5){ // tree roots: change lane (1 or 2 lanes, sometimes at opposite sides)
+   }else if(o===3){ // tree roots: change lane (1 or 2 lanes, sometimes at opposite sides)
     for(const ln of[[0],[1],[2],[0,2],[0,1],[1,2]][Math.floor(Math.random()*6)]){
-     const tr=trunk(),g=new THREE.Group();
-     tr.rotation.x=Math.PI;tr.scale.set(.55,.45,.55);tr.position.set(0,2.45,0);g.add(tr);
-     g.position.set(LX[ln],0,z);item(t,g,'wall');
+     const g=rootObj();g.position.set(LX[ln],0,z);item(t,g,'wall');
     }
    }else if(o===4){ // burning vine: slide under it or change lane
-    const ln=Math.floor(Math.random()*3),g=new THREE.Group(),F=ft();
-    const lm=mk('cyl',0x4a3320,0,3.5,0,.28,2.6,.28);lm.rotation.z=Math.PI/2;g.add(lm);
-    for(const off of[-.5,0,.5]){g.add(mk('cyl',0x2f5d2a,off,2.4,0,.1,2.2,.1));g.add(mk('cyl',0x1c130b,off,1.35,0,.13,.5,.13))}
-    for(let i=0;i<4;i++){const f=new THREE.Sprite(F.f);f.userData={y:1.5+i*.4,s:1.5-i*.12,p:Math.random()*6};f.position.set((i%2?.3:-.3),f.userData.y,.1);g.add(f);t.userData.fl.push(f)}
-    const gl=new THREE.Sprite(F.g);gl.scale.set(3.4,3.4,1);gl.position.set(0,1.9,.2);g.add(gl);
+    const ln=Math.floor(Math.random()*3),g=new THREE.Group(),F=ft(),V=vineG();
+    const lm=new THREE.Mesh(vineG.b,M(0x3b2a1a));lm.rotation.z=Math.PI/2;lm.position.y=6.4;g.add(lm);
+    [-.6,-.2,.25,.6].forEach((off,i)=>{const m=new THREE.Mesh(V[i],M(0x2f6a2a));m.position.x=off;g.add(m)});
+    for(let i=0;i<6;i++){const f=new THREE.Sprite(F.f),y=1.3+(i%3)*.35;f.userData={y,s:1+Math.random()*.4,p:Math.random()*6};f.position.set(-.55+i*.22+(Math.random()-.5)*.1,y,.1);g.add(f);t.userData.fl.push(f)}
+    const gl=new THREE.Sprite(F.g);gl.scale.set(2.4,2.4,1);gl.position.set(0,1.7,.2);g.add(gl);
     g.position.set(LX[ln],0,z);item(t,g,'vine');
    }else{ // pothole / mud pit: jump
     item(t,mk('cyl',w.deco==='tree'?0x3a2a14:0x111111,LX[l],.02,z,2,.05,2),'hole');
