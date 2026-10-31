@@ -10,7 +10,7 @@ canvas{display:block}
 #msg h1{font-size:36px;margin:0 0 10px}#msg p{margin:4px 0;font-size:17px}
 </style></head><body>
 <div id="hud"><span id="sc">0 m</span><span id="wn"></span><span id="co">🪙 0</span></div>
-<div id="msg"><h1>Worlds Runner</h1><p>Swipe ← → to change lane</p><p>Swipe ↑ to jump · ↓ to slide</p><p><b>Tap to start</b></p></div>
+<div id="msg"><h1>Worlds Runner</h1><p>Swipe ← → to change lane</p><p>Swipe ↑ to jump · ↓ to slide</p><p><b>Tap to start</b></p><p id="dbg" style="font-size:13px;opacity:.85;max-width:90%;word-break:break-all">v2 · loading character…</p></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
@@ -53,6 +53,8 @@ function play(n){
  a.reset();a.setLoop(ONCE[n]?THREE.LoopOnce:THREE.LoopRepeat);a.clampWhenFinished=true;
  a.fadeIn(.12).play();if(cur)cur.fadeOut(.12);cur=a;
 }
+const dbg=t=>{const d=document.getElementById('dbg');if(d)d.textContent=t};
+THREE.DefaultLoadingManager.onError=u=>dbg('✗ could not load: '+u);
 const GL=new THREE.GLTFLoader();
 GL.load('assets/characters/superhero/Superhero_Male_FullBody.gltf',g=>{
  const h=g.scene;h.rotation.y=Math.PI;
@@ -65,9 +67,9 @@ GL.load('assets/characters/superhero/Superhero_Male_FullBody.gltf',g=>{
   }
   if(acts.slide)acts.slide.setDuration(.6);
   P.children.slice().forEach(c=>P.remove(c));
-  P.add(h);play('idle');
- },null,e=>console.warn('animations failed',e));
-},null,e=>console.warn('character failed',e));
+  P.add(h);play('idle');dbg('v2 · ✓ character ready');
+ },null,e=>dbg('✗ animations failed: '+(e&&e.message||'check file path')));
+},null,e=>dbg('✗ character failed: '+(e&&e.message||'check file path/textures')));
 
 // Tiles
 const tiles=[];let tc=0;
