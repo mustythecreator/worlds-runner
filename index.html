@@ -10,63 +10,21 @@ canvas{display:block}
 #msg h1{font-size:36px;margin:0 0 10px}#msg p{margin:4px 0;font-size:17px}
 </style></head><body>
 <div id="hud"><span id="sc">0 m</span><span id="wn"></span><span id="co">🪙 0</span></div>
-<div id="msg"><h1>Worlds Runner</h1><p>Swipe ← → to change lane</p><p>Swipe ↑ to jump · ↓ to slide</p><p><b>Tap to start</b></p><p id="dbg" style="font-size:13px;opacity:.85;max-width:90%;word-break:break-all">v2 · loading character…</p></div>
+<div id="msg"><h1>Worlds Runner</h1><p>Swipe ← → to change lane</p><p>Swipe ↑ to jump · ↓ to slide</p><p><b>Tap to start</b></p></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 const W=[
- {n:'Jungle',len:24,ring:0x7dff9a,sky:0x5f9c78,road:0x6b4a2b,side:0x2e8b3a,deco:'tree'},
- {n:'City',len:16,ring:0x7ab8ff,sky:0x8fa8c8,road:0x45484f,side:0x6d7482,deco:'bld'}
+ {n:'Jungle',sky:0x7fd6a0,road:0x6b4a2b,side:0x2e8b3a,deco:'tree'},
+ {n:'City',sky:0x8fa8c8,road:0x45484f,side:0x6d7482,deco:'bld'}
 ];
 const LX=[-2.2,0,2.2],TL=30,NT=7;
-// each world's length is its own 'len' in W above (in tiles of 30 m)
-function wAt(idx){let i=idx%W.reduce((a,b)=>a+b.len,0),k=0;while(i>=W[k].len){i-=W[k].len;k++}return[W[k],i]}
-// Jungle ground textures (files in assets/textures/). Swap names here to try another road or side.
-const ROAD='Ground086_2K-JPG',SIDE='Grass002_1K-JPG',TXL=new THREE.TextureLoader();let AX=8;
-function tx(f,rx,ry){const t=TXL.load('assets/textures/'+f);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rx,ry);t.anisotropy=AX;return t}
-function jm(){
- if(jm.r)return jm.r;
- const mat=(n,rx,ry,c)=>{const m=new THREE.MeshStandardMaterial({map:tx(n+'_Color.jpg',rx,ry),normalMap:tx(n+'_NormalDX.jpg',rx,ry),roughness:.95,metalness:0});m.normalScale.set(1,-1);if(c)m.color.set(c);return m};
- return jm.r={road:mat(ROAD,4,15,0xb08060),side:mat(SIDE,7,10)};
-}
-function gm(){ // soft gravel patches blended into the mud road
- if(gm.m)return gm.m;
- const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');
- const r=g.createRadialGradient(64,64,6,64,64,62);r.addColorStop(0,'rgba(255,255,255,1)');r.addColorStop(.6,'rgba(255,255,255,.7)');r.addColorStop(1,'rgba(255,255,255,0)');
- g.fillStyle=r;g.fillRect(0,0,128,128);
- const m=new THREE.MeshStandardMaterial({map:tx('Gravel025_2K-JPG_Color.jpg',1,1),alphaMap:new THREE.CanvasTexture(c),transparent:true,depthWrite:false,roughness:1,color:0xb09478,polygonOffset:true,polygonOffsetFactor:-2});
- m.normalScale.set(1,-1);return gm.m=m;
-}
-function trunk(){ // fallen-tree trunk: the CommonTree_5 model with its leaves removed
- if(!trunk.o){const o=PR.CommonTree_5.clone(true),d=[];o.traverse(c=>{if(c.isMesh&&c.material&&/Leaves/.test(c.material.name))d.push(c)});d.forEach(c=>c.parent.remove(c));trunk.o=o}
- return trunk.o.clone(true);
-}
-function roadTex(w){
- if(w.tex)return w.tex;
- const jg=w.deco==='tree',c=document.createElement('canvas');c.width=256;c.height=960;const g=c.getContext('2d');
- g.fillStyle='#'+w.road.toString(16).padStart(6,'0');g.fillRect(0,0,256,960);
- for(let i=0;i<2600;i++){g.fillStyle=(Math.random()<.5?'rgba(255,255,255,':'rgba(0,0,0,')+Math.random()*.18+')';const z=2+Math.random()*(jg?10:5);g.fillRect(Math.random()*256,Math.random()*960,z,z*(jg?1:1.6))}
- if(jg){
-  g.fillStyle='rgba(0,0,0,.16)';g.fillRect(60,0,30,960);g.fillRect(166,0,30,960);
-  for(let i=0;i<70;i++){g.fillStyle='rgba(200,180,150,'+(.2+Math.random()*.3)+')';g.beginPath();g.ellipse(20+Math.random()*216,Math.random()*960,2+Math.random()*4,1.5+Math.random()*3,0,0,6.3);g.fill()}
- }else{
-  g.strokeStyle='rgba(0,0,0,.35)';g.lineWidth=1.5;
-  for(let i=0;i<14;i++){let x=20+Math.random()*216,y=Math.random()*960;g.beginPath();g.moveTo(x,y);for(let k=0;k<5;k++){x+=(Math.random()-.5)*30;y+=8+Math.random()*22;g.lineTo(x,y)}g.stroke()}
- }
- const e=g.createLinearGradient(0,0,256,0),ec=jg?'rgba(40,95,30,':'rgba(0,0,0,';
- e.addColorStop(0,ec+'.6)');e.addColorStop(.12,ec+'0)');e.addColorStop(.88,ec+'0)');e.addColorStop(1,ec+'.6)');
- g.fillStyle=e;g.fillRect(0,0,256,960);
- if(!jg){g.fillStyle='#8a8d94';g.fillRect(0,0,9,960);g.fillRect(247,0,9,960)}
- const t=new THREE.CanvasTexture(c);t.anisotropy=4;return w.tex=t;
-}
 const R=new THREE.WebGLRenderer({antialias:true});
 R.setPixelRatio(Math.min(devicePixelRatio,2));
 document.body.prepend(R.domElement);
-AX=Math.min(8,R.capabilities.getMaxAnisotropy());
 const S=new THREE.Scene(),C=new THREE.PerspectiveCamera(70,1,.1,120);
 S.background=new THREE.Color(W[0].sky);
 S.fog=new THREE.Fog(W[0].sky,25,85);
-S.add(new THREE.HemisphereLight(0xdff3ff,0x4a6b3a,1.1));
+S.add(new THREE.AmbientLight(0xffffff,.75));
 const dl=new THREE.DirectionalLight(0xffffff,.8);dl.position.set(5,10,5);S.add(dl);
 function rs(){R.setSize(innerWidth,innerHeight);C.aspect=innerWidth/innerHeight;C.updateProjectionMatrix()}
 addEventListener('resize',rs);rs();
@@ -86,79 +44,25 @@ const legL=mk('box',0x2b3a67,-.2,.4,0,.3,.8,.3),legR=mk('box',0x2b3a67,.2,.4,0,.
 P.add(mk('box',0xe8a33d,0,1.1,0,.8,1,.5),mk('box',0xffd7a8,0,1.85,0,.5,.5,.5),legL,legR);
 S.add(P);
 
-// Real character + animations (falls back to the boxes above if loading fails)
-let mixer=null;const acts={};let cur=null;
-const AN={run:'Sprint_Loop',jump:'Jump_Start',slide:'Roll',die:'Death01',idle:'Idle_Loop'},ONCE={jump:1,slide:1,die:1};
-function play(n){
- const a=acts[n];if(!a||a===cur)return;
- a.reset();a.setLoop(ONCE[n]?THREE.LoopOnce:THREE.LoopRepeat);a.clampWhenFinished=true;
- a.fadeIn(.12).play();if(cur)cur.fadeOut(.12);cur=a;
-}
-const dbg=t=>{const d=document.getElementById('dbg');if(d)d.textContent=t};
-THREE.DefaultLoadingManager.onError=u=>dbg('✗ could not load: '+u);
-let ready=false;
-THREE.DefaultLoadingManager.onProgress=(u,i,t)=>{if(!ready)dbg('Loading '+i+' / '+t+' files…')};
-THREE.DefaultLoadingManager.onLoad=()=>{ready=true;dbg('v2 · ✓ ready')};
-THREE.DefaultLoadingManager.setURLModifier(u=>u.replace('T_Eye_Normal_png.png','T_Eye_Normal.png').replace('T_Hair_1_BaseColor.png','T_Hair_1_BaseColor_png.png').replace('T_Hair_1_Normal_png.png','T_Hair_1_Normal.png'));
-const GL=new THREE.GLTFLoader();
-// Jungle props (Quaternius Stylized Nature MegaKit); old shapes stay as fallback
-const PR={};
-function put(t,n,x,z,sc){const o=PR[n]&&PR[n].clone(true);if(!o)return;o.position.set(x,0,z);o.scale.setScalar(sc);o.rotation.y=Math.random()*6.28;t.add(o)}
-const TR=['CommonTree_3','CommonTree_5','Pine_5'],UG=[['Bush_Common',1.3],['Fern_1',.4],['Plant_1_Big',.9],['Rock_Medium_1',.5],['Rock_Medium_3',.45],['Grass_Wispy_Tall',1.2],['Flower_3_Group',1],['Mushroom_Common',2]];
-function jdec(t,x,z,s){
- put(t,TR[Math.floor(Math.random()*3)],x,z,.9+Math.random()*.5);
- const u=UG[Math.floor(Math.random()*UG.length)];
- put(t,u[0],s*(4.5+Math.random()*2.2),z+(Math.random()-.5)*6,u[1]*(.8+Math.random()*.4));
-}
-const PN=['CommonTree_3','CommonTree_5','Pine_5','Bush_Common','Fern_1','Plant_1_Big','Grass_Wispy_Tall','Rock_Medium_1','Rock_Medium_3','Mushroom_Common','Flower_3_Group'];
-let pd=0;
-PN.forEach(n=>GL.load('assets/jungle/'+n+'.gltf',g=>{PR[n]=g.scene;fin()},null,()=>fin()));
-function fin(){if(++pd===PN.length&&!run)tiles.forEach(t=>build(t,t.userData.idx))}
-GL.load('assets/characters/superhero/Superhero_Male_FullBody.gltf',g=>{
- const h=g.scene;h.rotation.y=Math.PI;
- GL.load('assets/animations/UAL1_Standard_RM.glb',a=>{
-  mixer=new THREE.AnimationMixer(h);
-  for(const k in AN){
-   const c=THREE.AnimationClip.findByName(a.animations,AN[k]);if(!c)continue;
-   c.tracks=c.tracks.filter(t=>!t.name.startsWith('root.position'));
-   acts[k]=mixer.clipAction(c,h);
-  }
-  if(acts.slide)acts.slide.setDuration(.6);
-  P.children.slice().forEach(c=>P.remove(c));
-  P.add(h);play('idle');dbg('v2 · ✓ character ready');
- },null,e=>dbg('✗ animations failed: '+(e&&e.message||'check file path')));
-},null,e=>dbg('✗ character failed: '+(e&&e.message||'check file path/textures')));
-
 // Tiles
-const tiles=[];let tc=0,since=9;
+const tiles=[];let tc=0;
 for(let i=0;i<NT;i++){const t=new THREE.Group();S.add(t);tiles.push(t)}
 
 function item(t,m,type,solid){m.userData={type};t.add(m)}
 
 function build(t,idx){
  while(t.children.length)t.remove(t.children[0]);
- const [w,wi]=wAt(idx);
- t.userData.w=w;t.userData.idx=idx;
-
- const rm=new THREE.Mesh(G.plane,(w.deco==='tree'?jm().road:(w.mat||(w.mat=new THREE.MeshLambertMaterial({map:roadTex(w)})))));
- rm.rotation.x=-Math.PI/2;rm.scale.set(8,TL,1);t.add(rm);
- if(wi===0&&idx>0){ // glowing gate marks the start of a new world
-  const r=new THREE.Mesh(G.ring||(G.ring=new THREE.TorusGeometry(5,.15,8,40)),w.rmat||(w.rmat=new THREE.MeshBasicMaterial({color:w.ring})));
-  r.position.set(0,2.5,14);t.add(r);
- }
- for(const sx of[-14,14]){const m=mk('plane',w.side,sx,-.02,0,20,TL,1);if(w.deco==='tree')m.material=jm().side;t.add(m)}
- if(w.deco!=='tree'){t.add(mk('plane',0xdddddd,-1.1,.01,0,.08,TL,1));t.add(mk('plane',0xdddddd,1.1,.01,0,.08,TL,1))}
-
- if(w.deco==='tree')for(let i=0;i<2;i++){
-  const p=new THREE.Mesh(G.plane,gm()),q=2.5+Math.random()*2.5;
-  p.rotation.x=-Math.PI/2;p.rotation.z=Math.random()*6.3;p.scale.set(q,q*(.7+Math.random()*.6),1);
-  p.position.set((Math.random()-.5)*6,.02,(Math.random()-.5)*TL);t.add(p);
- }
+ const w=W[Math.floor(idx/6)%W.length];
+ t.userData.w=w;
+ t.add(mk('plane',w.road,0,0,0,8,TL,1));
+ t.add(mk('plane',w.side,-14,-.02,0,20,TL,1));
+ t.add(mk('plane',w.side,14,-.02,0,20,TL,1));
+ t.add(mk('plane',0xdddddd,-1.1,.01,0,.08,TL,1));
+ t.add(mk('plane',0xdddddd,1.1,.01,0,.08,TL,1));
  // side decor
  for(const s of[-1,1])for(let k=0;k<4;k++){
   const z=-12+k*8+Math.random()*3,x=s*(6+Math.random()*5);
-  if(w.deco==='tree'&&PR.CommonTree_3){jdec(t,x,z,s)}
-  else if(w.deco==='tree'){
+  if(w.deco==='tree'){
    t.add(mk('cyl',0x5a3b1e,x,1.5,z,.6,3,.6));
    t.add(mk('cone',0x1f6b2a,x,4,z,3,3.5,3));
   }else{
@@ -169,27 +73,17 @@ function build(t,idx){
  // coins + obstacles
  if(idx<2)return;
  for(const z of[-12,-6,0,6,12]){
-  const r=Math.random(),l=Math.floor(Math.random()*3);since++;
+  const r=Math.random(),l=Math.floor(Math.random()*3);
   if(r<.4){
    for(let j=-1;j<=1;j++)item(t,mk('box',0xffd400,LX[l],1,z+j*1.5,.55,.55,.12),'coin');
-  }else if(r<.7&&!(idx<3&&-(t.position.z+z)<35)){ // no obstacles in the first ~35 m
-   const q=Math.random();let o=q<.35?0:q<.55?1:2;if(o===1&&since<4)o=0;if(o===1)since=0; // overhead beams need a gap
+  }else if(r<.78){
+   const o=Math.floor(Math.random()*3);
    if(o===0){ // low obstacle: jump
-    if(w.deco==='tree'&&PR.Rock_Medium_1&&PR.Rock_Medium_3){ // boulder: jump over it
-     const rk=PR[Math.random()<.5?'Rock_Medium_1':'Rock_Medium_3'].clone(true);
-     rk.scale.setScalar(.5);rk.position.set(LX[l],.1,z);rk.rotation.y=Math.random()*6.3;item(t,rk,'low');
-    }else{
-     const m=w.deco==='tree'?mk('cyl',0x6b4423,LX[l],.45,z,.8,2,.8):mk('box',0xd9382b,LX[l],.45,z,2,.9,.5);
-     if(w.deco==='tree')m.rotation.z=Math.PI/2;
-     item(t,m,'low');
-    }
+    const m=w.deco==='tree'?mk('cyl',0x6b4423,LX[l],.45,z,.8,2,.8):mk('box',0xd9382b,LX[l],.45,z,2,.9,.5);
+    if(w.deco==='tree')m.rotation.z=Math.PI/2;
+    item(t,m,'low');
    }else if(o===1){ // overhead: slide
-    if(w.deco==='tree'&&PR.CommonTree_5&&PR.Rock_Medium_3){ // fallen tree resting on two boulders: slide under it
-     const g=new THREE.Group(),tr=trunk();
-     tr.rotation.z=Math.PI/2;tr.scale.setScalar(1.5);tr.position.set(4.1,2,0);g.add(tr);
-     for(const sx of[-4.4,4.4]){const rk=PR.Rock_Medium_3.clone(true);rk.scale.setScalar(.7);rk.position.set(sx,0,0);g.add(rk)}
-     g.position.z=z;item(t,g,'high');
-    }else item(t,mk('box',w.deco==='tree'?0x5a3b1e:0x777777,0,2.2,z,7,.8,.8),'high');
+    item(t,mk('box',w.deco==='tree'?0x5a3b1e:0x777777,0,2.2,z,7,.8,.8),'high');
    }else{ // pothole / mud pit: jump
     item(t,mk('cyl',w.deco==='tree'?0x3a2a14:0x111111,LX[l],.02,z,2,.05,2),'hole');
    }
@@ -198,16 +92,16 @@ function build(t,idx){
 }
 
 // Game state
-let jb=0,run=false,dead=false,v,dist,coins,lane,px,py,vy,sl,ph=0,curW=null,deadAt=0;
+let run=false,dead=false,v,dist,coins,lane,px,py,vy,sl,ph=0,curW=null,deadAt=0;
 const $=id=>document.getElementById(id);
 function reset(){
  tiles.forEach((t,i)=>{t.position.z=TL-i*TL;build(t,i)});
- jb=0;tc=NT;v=14;dist=0;coins=0;lane=1;px=0;py=0;vy=0;sl=0;dead=false;
- P.position.set(0,0,0);P.scale.y=1;play('run');
+ tc=NT;v=14;dist=0;coins=0;lane=1;px=0;py=0;vy=0;sl=0;dead=false;
+ P.position.set(0,0,0);P.scale.y=1;
  $('co').textContent='🪙 0';$('sc').textContent='0 m';
 }
 function over(){
- dead=true;run=false;deadAt=performance.now();play('die');
+ dead=true;run=false;deadAt=performance.now();
  $('msg').innerHTML='<h1>Crashed!</h1><p>'+Math.floor(dist)+' m · 🪙 '+coins+'</p><p><b>Tap to retry</b></p>';
  $('msg').style.display='flex';
 }
@@ -219,10 +113,9 @@ function update(dt){
   t.position.z=m-TL;build(t,tc++);
  }
  px+=(LX[lane]-px)*Math.min(1,dt*14);P.position.x=px;
- jb-=dt;vy-=32*dt;py+=vy*dt;if(py<=0){py=0;vy=0;if(jb>0){jb=0;jump()}}
+ vy-=32*dt;py+=vy*dt;if(py<=0){py=0;vy=0}
  P.position.y=py;
- if(sl>0)sl-=dt;P.scale.y=(sl>0&&!mixer)?.5:1;
- play(sl>0?'slide':py>0?'jump':'run');
+ if(sl>0){sl-=dt;P.scale.y=.5}else P.scale.y=1;
  ph+=dt*v*.8;
  const sw=py>0?0:Math.sin(ph)*.3;
  legL.position.z=sw;legR.position.z=-sw;
@@ -245,10 +138,9 @@ function update(dt){
 }
 function cam(dt){
  C.position.set(px*.5,4.2,7);C.lookAt(px*.3,1.5,-8);
- let aw=curW;for(const t of tiles)if(t.position.z<=-45&&t.position.z>-75)aw=t.userData.w||aw;
- if(aw){
-  const col=new THREE.Color(aw.sky);
-  S.background.lerp(col,Math.min(1,dt*1.2));
+ if(curW){
+  const col=new THREE.Color(curW.sky);
+  S.background.lerp(col,Math.min(1,dt*2));
   S.fog.color.copy(S.background);
  }
 }
@@ -259,7 +151,7 @@ addEventListener('pointerdown',e=>{sx=e.clientX;sy=e.clientY});
 addEventListener('pointerup',e=>{
  const dx=e.clientX-sx,dy=e.clientY-sy;
  if(!run){
-  if(ready&&Math.abs(dx)<20&&Math.abs(dy)<20&&(!dead||performance.now()-deadAt>500)){
+  if(Math.abs(dx)<20&&Math.abs(dy)<20&&(!dead||performance.now()-deadAt>500)){
    reset();$('msg').style.display='none';run=true;
   }
   return;
@@ -271,12 +163,11 @@ addEventListener('keydown',e=>{
  const k={ArrowLeft:'l',ArrowRight:'r',ArrowUp:'u',ArrowDown:'d',' ':'u'}[e.key];
  if(k&&run)act(k);
 });
-function jump(){vy=11;sl=0;py=.03;if(cur&&cur===acts.jump)acts.jump.reset().play()}
 function act(a){
  if(a==='l')lane=Math.max(0,lane-1);
  else if(a==='r')lane=Math.min(2,lane+1);
- else if(a==='u'){if(py<=.02)jump();else jb=.2} // press jump just before landing = jumps again on landing
- else if(a==='d'){sl=.6;if(py>0)vy=-18;if(cur&&cur===acts.slide)acts.slide.reset().play()} // swipe down again = roll again
+ else if(a==='u'&&py===0){vy=11;sl=0}
+ else if(a==='d'){sl=.6;if(py>0)vy=-18}
 }
 
 reset();
@@ -286,7 +177,6 @@ let last=performance.now();
  const dt=Math.min(.05,(now-last)/1000);last=now;
  if(run)update(dt);
  else if(!dead)for(const t of tiles)t.position.z+=0;
- if(mixer)mixer.update(dt);
  cam(dt);
  R.render(S,C);
 })(last);
