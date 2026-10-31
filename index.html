@@ -12,7 +12,8 @@ canvas{display:block}
 </style></head><body>
 <div id="hud"><span id="sc">0 m</span><span id="wn"></span><span id="co">🪙 0</span></div>
 <div id="st">Stumbled! Avoid the next one</div>
-<div id="msg"><h1>Worlds Runner</h1><p>Swipe ← → to change lane</p><p>Swipe ↑ to jump · ↓ to slide</p><p><b>Tap to start</b></p><p id="dbg" style="font-size:13px;opacity:.85;max-width:90%;word-break:break-all">v2 · loading character…</p></div>
+<div id="msg"><h1>Worlds Runner</h1><p>Swipe ← → to change lane</p><p>Swipe ↑ to jump · ↓ to slide</p><p><b>Tap to start</b></p><p><button id="skin" style="font:600 17px sans-serif;padding:10px 18px;border-radius:22px;border:1px solid #fff8;background:#0006;color:#fff">Runner: Hero  ▶</button></p>
+<p id="dbg" style="font-size:13px;opacity:.85;max-width:90%;word-break:break-all">v2 · loading character…</p></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
@@ -133,7 +134,7 @@ function potV(){ // rough patched-and-broken road with a pothole (cached variant
  if(potV.v)return potV.v;
  const jag=(rx,rz,n,j)=>{const sh=new THREE.Shape();for(let i=0;i<n;i++){const a=i/n*6.283,r=1-j/2+Math.random()*j,x=Math.cos(a)*rx*r,y=Math.sin(a)*rz*r;i?sh.lineTo(x,y):sh.moveTo(x,y)}sh.closePath();return new THREE.ShapeGeometry(sh)};
  let lay=0;
- const fl=(g,c,y,x,z)=>{lay++;const m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({color:c,polygonOffset:true,polygonOffsetFactor:-lay,polygonOffsetUnits:-lay}));m.rotation.x=-Math.PI/2;m.position.set(x||0,y,z||0);return m};
+ const fl=(g,c,y,x,z)=>{lay++;const tx_=lay<=2,m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({color:tx_?(lay===1?0xb0a8a0:0x8c857e):c,map:tx_?cmat().dmg:null,polygonOffset:true,polygonOffsetFactor:-lay,polygonOffsetUnits:-lay}));m.rotation.x=-Math.PI/2;m.position.set(x||0,y,z||0);return m};
  potV.v=[0,1,2,3,4].map(()=>{
   const g=new THREE.Group();lay=0;
   g.add(fl(jag(1.05,1.5,16,.18),0x303136,.014));
@@ -171,6 +172,17 @@ function rootObj(){ // tree stump gripped by arching roots (unjumpable)
 function trunk(){ // fallen-tree trunk: the CommonTree_5 model with its leaves removed
  if(!trunk.o){const o=PR.CommonTree_5.clone(true),d=[];o.traverse(c=>{if(c.isMesh&&c.material&&/Leaves/.test(c.material.name))d.push(c)});d.forEach(c=>c.parent.remove(c));trunk.o=o}
  return trunk.o.clone(true);
+}
+function cmat(){ // City textures (files in assets/textures/)
+ if(cmat.r)return cmat.r;
+ const m=(f,rx,ry)=>new THREE.MeshStandardMaterial({map:tx(f,rx,ry),roughness:1,metalness:0}),wt=tx('plaster_stone_wall_02_diff_1k.jpg',1,1);
+ return cmat.r={road:m('aerial_asphalt_01_diff_2k.jpg',3,11),side:m('garage_floor_diff_1k.jpg',7,10),walk:m('marble_rock_02_diff_1k.jpg',.7,10),dmg:tx('road_damaged_2_diff_2k.jpg',.3,.3),
+  walls:[0xd8d0c4,0xc2b8a8,0xe4dccd].map(c=>new THREE.MeshStandardMaterial({map:wt,color:c,roughness:1}))};
+}
+function bgeo(h){ // building box with texture scaled to its height (cached by height)
+ const k=Math.round(h/2);bgeo.c=bgeo.c||{};if(bgeo.c[k])return bgeo.c[k];
+ const hh=k*2,g=new THREE.BoxGeometry(4,hh,4),uv=g.attributes.uv;for(let i=0;i<uv.count;i++)uv.setY(i,uv.getY(i)*hh/4);
+ return bgeo.c[k]=g;
 }
 function roadTex(w){
  if(w.tex)return w.tex;
@@ -247,20 +259,40 @@ let pd=0;
 WN.forEach(n=>GL.load('assets/water/'+encodeURIComponent(n)+'.glb',g=>{PW[n]={s:g.scene,a:g.animations};fin()},null,()=>fin()));
 PN.forEach(n=>GL.load('assets/jungle/'+n+'.gltf',g=>{PR[n]=g.scene;fin()},null,()=>fin()));
 function fin(){if(++pd===PN.length+WN.length){dbg('✓ ready · jungle '+Object.keys(PR).length+'/'+PN.length+' · water '+Object.keys(PW).length+'/'+WN.length);if(!run)tiles.forEach(t=>build(t,t.userData.idx))}}
-GL.load('assets/characters/superhero/Superhero_Male_FullBody.gltf',g=>{
- const h=g.scene;h.rotation.y=Math.PI;
- GL.load('assets/animations/UAL1_Standard_RM.glb',a=>{
-  mixer=new THREE.AnimationMixer(h);
-  for(const k in AN){
-   const c=THREE.AnimationClip.findByName(a.animations,AN[k]);if(!c)continue;
-   c.tracks=c.tracks.filter(t=>!t.name.startsWith('root.position'));
-   acts[k]=mixer.clipAction(c,h);
-  }
-  if(acts.slide)acts.slide.setDuration(.6);if(acts.stumble)acts.stumble.setDuration(.7);
-  P.children.slice().forEach(c=>P.remove(c));
-  P.add(h);play('idle');dbg('v2 · ✓ character ready');
- },null,e=>dbg('✗ animations failed: '+(e&&e.message||'check file path')));
-},null,e=>dbg('✗ character failed: '+(e&&e.message||'check file path/textures')));
+// ---- Runner skins: the Superhero (UAL animations) + dressed characters (own animations)
+const SK=[
+ {id:'hero',name:'Hero',type:'ual',file:'assets/characters/superhero/Superhero_Male_FullBody.gltf'},
+ {id:'Casual',name:'Casual',type:'mod',file:'assets/characters/women/Casual.gltf'},
+ {id:'Worker',name:'Worker',type:'mod',file:'assets/characters/women/Worker.gltf'},
+ {id:'Suit',name:'Suit',type:'mod',file:'assets/characters/women/Suit.gltf'},
+ {id:'Formal',name:'Formal',type:'mod',file:'assets/characters/women/Formal.gltf'}
+],AM={run:'Run',jump:'Roll',slide:'Roll',die:'Death',idle:'Idle',stumble:'HitRecieve'};
+let UALc=null,skinId='hero';
+try{skinId=new URLSearchParams(location.search).get('skin')||localStorage.getItem('skin')||'hero'}catch(e){}
+function loadSkin(id){
+ const sk=SK.find(x=>x.id===id)||SK[0];
+ GL.load(sk.file,g=>{
+  const h=g.scene;h.rotation.y=Math.PI;
+  const setup=clips=>{
+   mixer=new THREE.AnimationMixer(h);for(const k in acts)delete acts[k];cur=null;
+   const M=sk.type==='ual'?AN:AM;
+   for(const k in M){let c=THREE.AnimationClip.findByName(clips,M[k]);if(!c)continue;c=c.clone();c.tracks=c.tracks.filter(t=>!/^[rR]oot\.position/.test(t.name));acts[k]=mixer.clipAction(c,h)}
+   if(acts.slide)acts.slide.setDuration(.6);if(acts.stumble)acts.stumble.setDuration(.7);
+   if(sk.type!=='ual'){if(acts.jump)acts.jump.setDuration(.75);if(acts.run)acts.run.timeScale=1.3}
+   P.children.slice().forEach(c=>P.remove(c));P.add(h);play(run?'run':'idle');
+   skinId=sk.id;try{localStorage.setItem('skin',sk.id)}catch(e){}
+   const b=document.getElementById('skin');if(b)b.textContent='Runner: '+sk.name+'  ▶';
+   dbg('✓ runner ready: '+sk.name);
+  };
+  if(sk.type!=='ual')return setup(g.animations);
+  if(UALc)return setup(UALc);
+  GL.load('assets/animations/UAL1_Standard_RM.glb',a=>{UALc=a.animations;setup(UALc)},null,e=>dbg('✗ animations failed: '+(e&&e.message||'check file path')));
+ },null,e=>{dbg('✗ '+sk.name+' not found, using Hero');if(sk.id!=='hero')loadSkin('hero')});
+}
+loadSkin(skinId);
+document.getElementById('skin').addEventListener('pointerup',e=>{e.stopPropagation();if(run)return;const i=SK.findIndex(x=>x.id===skinId);loadSkin(SK[(i+1)%SK.length].id)});
+document.getElementById('skin').addEventListener('pointerdown',e=>e.stopPropagation());
+
 
 // Tiles
 const tiles=[];let tc=0,since=9;
@@ -274,7 +306,7 @@ function build(t,idx){
  t.userData.w=w;t.userData.idx=idx;t.userData.fl=[];t.userData.col=null;t.userData.mx=[];t.userData.cr=[];
 
  const colT=w.deco==='water'&&wi%3===1&&idx>=3;
- if(!colT){const rm=new THREE.Mesh(G.plane,(w.deco==='tree'?jm().road:(w.mat||(w.mat=new THREE.MeshLambertMaterial({map:roadTex(w)})))));
+ if(!colT){const rm=new THREE.Mesh(G.plane,(w.deco==='tree'?jm().road:w.deco==='bld'?cmat().road:(w.mat||(w.mat=new THREE.MeshLambertMaterial({map:roadTex(w)})))));
  rm.rotation.x=-Math.PI/2;rm.scale.set(8,TL,1);t.add(rm)}
  if(w.deco==='water')for(const sx of[-3.9,3.9]){t.add(mk('box',0x4d3722,sx,.8,0,.12,.1,TL));for(const z of[-12,0,12])t.add(mk('box',0x4d3722,sx,.45,z,.14,.9,.14))}
  if(wi===0&&idx>0){ // glowing gate marks the start of a new world
@@ -282,7 +314,8 @@ function build(t,idx){
   r.position.set(0,2.5,14);t.add(r);
  }
  if(w.deco==='water'){const wp=new THREE.Mesh(G.plane,wm()),w2=new THREE.Mesh(G.plane,wm.m2);wp.rotation.x=w2.rotation.x=-Math.PI/2;wp.position.y=-.9;w2.position.y=-.87;wp.scale.set(44,TL,1);w2.scale.set(44,TL,1);t.add(mk('plane',0x0d3550,0,-3.2,0,44,TL,1),wp,w2)}
- else for(const sx of[-14,14]){const m=mk('plane',w.side,sx,-.02,0,20,TL,1);if(w.deco==='tree')m.material=jm().side;t.add(m)}
+ else for(const sx of[-14,14]){const m=mk('plane',w.side,sx,-.02,0,20,TL,1);if(w.deco==='tree')m.material=jm().side;if(w.deco==='bld')m.material=cmat().side;t.add(m)}
+ if(w.deco==='bld')for(const sx of[-4.7,4.7]){const p=new THREE.Mesh(G.plane,cmat().walk);p.rotation.x=-Math.PI/2;p.position.set(sx,.03,0);p.scale.set(1.4,TL,1);t.add(p)}
  if(w.deco!=='tree'){t.add(mk('plane',0xdddddd,-1.1,.01,0,.08,TL,1));t.add(mk('plane',0xdddddd,1.1,.01,0,.08,TL,1))}
 
  if(w.deco==='tree')for(let i=0;i<2;i++){
@@ -299,8 +332,7 @@ function build(t,idx){
    t.add(mk('cyl',0x5a3b1e,x,1.5,z,.6,3,.6));
    t.add(mk('cone',0x1f6b2a,x,4,z,3,3.5,3));
   }else{
-   const h=6+Math.random()*10,c=[0x8a93a6,0x6e7a91,0xa0a7b5][k%3];
-   t.add(mk('box',c,x,h/2,z,4,h,4));
+   const bm=new THREE.Mesh(bgeo(6+Math.random()*10),cmat().walls[k%3]);bm.position.set(x,bm.geometry.parameters.height/2,z);t.add(bm);
   }
  }
  // coins + obstacles
