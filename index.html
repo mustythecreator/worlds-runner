@@ -104,7 +104,7 @@ const GL=new THREE.GLTFLoader();
 // Jungle props (Quaternius Stylized Nature MegaKit); old shapes stay as fallback
 const PR={};
 function put(t,n,x,z,sc){const o=PR[n]&&PR[n].clone(true);if(!o)return;o.position.set(x,0,z);o.scale.setScalar(sc);o.rotation.y=Math.random()*6.28;t.add(o)}
-const TR=['CommonTree_3','CommonTree_5','Pine_5'],UG=[['Bush_Common',1.3],['Fern_1',.4],['Plant_1_Big',.9],['Rock_Medium_1',.8],['Rock_Medium_3',.7],['Grass_Wispy_Tall',1.2],['Flower_3_Group',1],['Mushroom_Common',2]];
+const TR=['CommonTree_3','CommonTree_5','Pine_5'],UG=[['Bush_Common',1.3],['Fern_1',.4],['Plant_1_Big',.9],['Rock_Medium_1',.5],['Rock_Medium_3',.45],['Grass_Wispy_Tall',1.2],['Flower_3_Group',1],['Mushroom_Common',2]];
 function jdec(t,x,z,s){
  put(t,TR[Math.floor(Math.random()*3)],x,z,.9+Math.random()*.5);
  const u=UG[Math.floor(Math.random()*UG.length)];
@@ -172,8 +172,8 @@ function build(t,idx){
   const r=Math.random(),l=Math.floor(Math.random()*3);since++;
   if(r<.4){
    for(let j=-1;j<=1;j++)item(t,mk('box',0xffd400,LX[l],1,z+j*1.5,.55,.55,.12),'coin');
-  }else if(r<.78){
-   let o=Math.floor(Math.random()*3);if(o===1&&since<4)o=0;if(o===1)since=0; // overhead beams need a gap
+  }else if(r<.7&&!(idx<3&&-(t.position.z+z)<35)){ // no obstacles in the first ~35 m
+   const q=Math.random();let o=q<.35?0:q<.55?1:2;if(o===1&&since<4)o=0;if(o===1)since=0; // overhead beams need a gap
    if(o===0){ // low obstacle: jump
     if(w.deco==='tree'&&PR.Rock_Medium_1&&PR.Rock_Medium_3){ // boulder: jump over it
      const rk=PR[Math.random()<.5?'Rock_Medium_1':'Rock_Medium_3'].clone(true);
@@ -186,8 +186,8 @@ function build(t,idx){
    }else if(o===1){ // overhead: slide
     if(w.deco==='tree'&&PR.CommonTree_5&&PR.Rock_Medium_3){ // fallen tree resting on two boulders: slide under it
      const g=new THREE.Group(),tr=trunk();
-     tr.rotation.z=Math.PI/2;tr.scale.setScalar(1.5);tr.position.set(4.1,2.25,0);g.add(tr);
-     for(const sx of[-4.4,4.4]){const rk=PR.Rock_Medium_3.clone(true);rk.scale.setScalar(.9);rk.position.set(sx,0,0);g.add(rk)}
+     tr.rotation.z=Math.PI/2;tr.scale.setScalar(1.5);tr.position.set(4.1,2,0);g.add(tr);
+     for(const sx of[-4.4,4.4]){const rk=PR.Rock_Medium_3.clone(true);rk.scale.setScalar(.7);rk.position.set(sx,0,0);g.add(rk)}
      g.position.z=z;item(t,g,'high');
     }else item(t,mk('box',w.deco==='tree'?0x5a3b1e:0x777777,0,2.2,z,7,.8,.8),'high');
    }else{ // pothole / mud pit: jump
@@ -198,11 +198,11 @@ function build(t,idx){
 }
 
 // Game state
-let run=false,dead=false,v,dist,coins,lane,px,py,vy,sl,ph=0,curW=null,deadAt=0;
+let jb=0,run=false,dead=false,v,dist,coins,lane,px,py,vy,sl,ph=0,curW=null,deadAt=0;
 const $=id=>document.getElementById(id);
 function reset(){
  tiles.forEach((t,i)=>{t.position.z=TL-i*TL;build(t,i)});
- tc=NT;v=14;dist=0;coins=0;lane=1;px=0;py=0;vy=0;sl=0;dead=false;
+ jb=0;tc=NT;v=14;dist=0;coins=0;lane=1;px=0;py=0;vy=0;sl=0;dead=false;
  P.position.set(0,0,0);P.scale.y=1;play('run');
  $('co').textContent='🪙 0';$('sc').textContent='0 m';
 }
@@ -219,7 +219,7 @@ function update(dt){
   t.position.z=m-TL;build(t,tc++);
  }
  px+=(LX[lane]-px)*Math.min(1,dt*14);P.position.x=px;
- vy-=32*dt;py+=vy*dt;if(py<=0){py=0;vy=0}
+ jb-=dt;vy-=32*dt;py+=vy*dt;if(py<=0){py=0;vy=0;if(jb>0){jb=0;jump()}}
  P.position.y=py;
  if(sl>0)sl-=dt;P.scale.y=(sl>0&&!mixer)?.5:1;
  play(sl>0?'slide':py>0?'jump':'run');
@@ -271,10 +271,11 @@ addEventListener('keydown',e=>{
  const k={ArrowLeft:'l',ArrowRight:'r',ArrowUp:'u',ArrowDown:'d',' ':'u'}[e.key];
  if(k&&run)act(k);
 });
+function jump(){vy=11;sl=0;py=.03;if(cur&&cur===acts.jump)acts.jump.reset().play()}
 function act(a){
  if(a==='l')lane=Math.max(0,lane-1);
  else if(a==='r')lane=Math.min(2,lane+1);
- else if(a==='u'&&py===0){vy=11;sl=0}
+ else if(a==='u'){if(py<=.02)jump();else jb=.2} // press jump just before landing = jumps again on landing
  else if(a==='d'){sl=.6;if(py>0)vy=-18;if(cur&&cur===acts.slide)acts.slide.reset().play()} // swipe down again = roll again
 }
 
