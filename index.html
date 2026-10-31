@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Worlds Runner</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#000;touch-action:none;font-family:sans-serif;-webkit-user-select:none;user-select:none}
+canvas{display:block}
+#hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:calc(env(safe-area-inset-top,0px) + 14px) 18px 0;color:#fff;font-weight:700;font-size:20px;text-shadow:0 2px 4px #000;pointer-events:none}
+#msg{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;text-align:center;background:rgba(0,0,0,.5);text-shadow:0 2px 4px #000}
+#msg h1{font-size:36px;margin:0 0 10px}#msg p{margin:4px 0;font-size:17px}
+</style></head><body>
+<div id="hud"><span id="sc">0 m</span><span id="wn"></span><span id="co">🪙 0</span></div>
+<div id="msg"><h1>Worlds Runner</h1><p>Swipe ← → to change lane</p><p>Swipe ↑ to jump · ↓ to slide</p><p><b>Tap to start</b></p></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const W=[
+ {n:'Jungle',sky:0x7fd6a0,road:0x6b4a2b,side:0x2e8b3a,deco:'tree'},
+ {n:'City',sky:0x8fa8c8,road:0x45484f,side:0x6d7482,deco:'bld'}
+];
+const LX=[-2.2,0,2.2],TL=30,NT=7;
+const R=new THREE.WebGLRenderer({antialias:true});
+R.setPixelRatio(Math.min(devicePixelRatio,2));
+document.body.prepend(R.domElement);
+const S=new THREE.Scene(),C=new THREE.PerspectiveCamera(70,1,.1,120);
+S.background=new THREE.Color(W[0].sky);
+S.fog=new THREE.Fog(W[0].sky,25,85);
+S.add(new THREE.AmbientLight(0xffffff,.75));
+const dl=new THREE.DirectionalLight(0xffffff,.8);dl.position.set(5,10,5);S.add(dl);
+function rs(){R.setSize(innerWidth,innerHeight);C.aspect=innerWidth/innerHeight;C.updateProjectionMatrix()}
+addEventListener('resize',rs);rs();
+
+const MC={},M=c=>MC[c]||(MC[c]=new THREE.MeshLambertMaterial({color:c}));
+const G={box:new THREE.BoxGeometry(1,1,1),cyl:new THREE.CylinderGeometry(.5,.5,1,12),cone:new THREE.ConeGeometry(.5,1,8),plane:new THREE.PlaneGeometry(1,1)};
+function mk(g,c,x,y,z,sx,sy,sz){
+ const m=new THREE.Mesh(G[g],M(c));
+ m.position.set(x,y,z);m.scale.set(sx,sy,sz);
+ if(g==='plane')m.rotation.x=-Math.PI/2;
+ return m;
+}
+
+// Player (placeholder shapes; swap for a GLB model later)
+const P=new THREE.Group();
+const legL=mk('box',0x2b3a67,-.2,.4,0,.3,.8,.3),legR=mk('box',0x2b3a67,.2,.4,0,.3,.8,.3);
+P.add(mk('box',0xe8a33d,0,1.1,0,.8,1,.5),mk('box',0xffd7a8,0,1.85,0,.5,.5,.5),legL,legR);
+S.add(P);
+
+// Tiles
+const tiles=[];let tc=0;
+for(let i=0;i<NT;i++){const t=new THREE.Group();S.add(t);tiles.push(t)}
+
+function item(t,m,type,solid){m.userData={type};t.add(m)}
+
+function build(t,idx){
+ while(t.children.length)t.remove(t.children[0]);
+ const w=W[Math.floor(idx/6)%W.length];
+ t.userData.w=w;
+ t.add(mk('plane',w.road,0,0,0,8,TL,1));
+ t.add(mk('plane',w.side,-14,-.02,0,20,TL,1));
+ t.add(mk('plane',w.side,14,-.02,0,20,TL,1));
+ t.add(mk('plane',0xdddddd,-1.1,.01,0,.08,TL,1));
+ t.add(mk('plane',0xdddddd,1.1,.01,0,.08,TL,1));
+ // side decor
+ for(const s of[-1,1])for(let k=0;k<4;k++){
+  const z=-12+k*8+Math.random()*3,x=s*(6+Math.random()*5);
+  if(w.deco==='tree'){
+   t.add(mk('cyl',0x5a3b1e,x,1.5,z,.6,3,.6));
+   t.add(mk('cone',0x1f6b2a,x,4,z,3,3.5,3));
+  }else{
+   const h=6+Math.random()*10,c=[0x8a93a6,0x6e7a91,0xa0a7b5][k%3];
+   t.add(mk('box',c,x,h/2,z,4,h,4));
+  }
+ }
+ // coins + obstacles
+ if(idx<2)return;
+ for(const z of[-12,-6,0,6,12]){
+  const r=Math.random(),l=Math.floor(Math.random()*3);
+  if(r<.4){
+   for(let j=-1;j<=1;j++)item(t,mk('box',0xffd400,LX[l],1,z+j*1.5,.55,.55,.12),'coin');
+  }else if(r<.78){
+   const o=Math.floor(Math.random()*3);
+   if(o===0){ // low obstacle: jump
+    const m=w.deco==='tree'?mk('cyl',0x6b4423,LX[l],.45,z,.8,2,.8):mk('box',0xd9382b,LX[l],.45,z,2,.9,.5);
+    if(w.deco==='tree')m.rotation.z=Math.PI/2;
+    item(t,m,'low');
+   }else if(o===1){ // overhead: slide
+    item(t,mk('box',w.deco==='tree'?0x5a3b1e:0x777777,0,2.2,z,7,.8,.8),'high');
+   }else{ // pothole / mud pit: jump
+    item(t,mk('cyl',w.deco==='tree'?0x3a2a14:0x111111,LX[l],.02,z,2,.05,2),'hole');
+   }
+  }
+ }
+}
+
+// Game state
+let run=false,dead=false,v,dist,coins,lane,px,py,vy,sl,ph=0,curW=null,deadAt=0;
+const $=id=>document.getElementById(id);
+function reset(){
+ tiles.forEach((t,i)=>{t.position.z=TL-i*TL;build(t,i)});
+ tc=NT;v=14;dist=0;coins=0;lane=1;px=0;py=0;vy=0;sl=0;dead=false;
+ P.position.set(0,0,0);P.scale.y=1;
+ $('co').textContent='🪙 0';$('sc').textContent='0 m';
+}
+function over(){
+ dead=true;run=false;deadAt=performance.now();
+ $('msg').innerHTML='<h1>Crashed!</h1><p>'+Math.floor(dist)+' m · 🪙 '+coins+'</p><p><b>Tap to retry</b></p>';
+ $('msg').style.display='flex';
+}
+function update(dt){
+ v=Math.min(34,v+dt*.3);dist+=v*dt;
+ for(const t of tiles)t.position.z+=v*dt;
+ for(const t of tiles)if(t.position.z>45){
+  const m=Math.min(...tiles.map(x=>x.position.z));
+  t.position.z=m-TL;build(t,tc++);
+ }
+ px+=(LX[lane]-px)*Math.min(1,dt*14);P.position.x=px;
+ vy-=32*dt;py+=vy*dt;if(py<=0){py=0;vy=0}
+ P.position.y=py;
+ if(sl>0){sl-=dt;P.scale.y=.5}else P.scale.y=1;
+ ph+=dt*v*.8;
+ const sw=py>0?0:Math.sin(ph)*.3;
+ legL.position.z=sw;legR.position.z=-sw;
+ // collisions
+ for(const t of tiles){
+  if(Math.abs(t.position.z)>20)continue;
+  if(Math.abs(t.position.z)<=TL/2&&t.userData.w!==curW){curW=t.userData.w;$('wn').textContent=curW.n}
+  for(const m of t.children){
+   const ty=m.userData.type;if(!ty)continue;
+   const wz=t.position.z+m.position.z;
+   if(Math.abs(wz)>.7)continue;
+   const same=Math.abs(m.position.x-px)<1.1;
+   if(ty==='coin'){if(same&&py<2){m.userData.type=null;m.visible=false;coins++;$('co').textContent='🪙 '+coins}}
+   else if(ty==='high'){if(sl<=0)return over()}
+   else if(ty==='low'){if(same&&py<.8)return over()}
+   else if(ty==='hole'){if(same&&py<.15)return over()}
+  }
+ }
+ $('sc').textContent=Math.floor(dist)+' m';
+}
+function cam(dt){
+ C.position.set(px*.5,4.2,7);C.lookAt(px*.3,1.5,-8);
+ if(curW){
+  const col=new THREE.Color(curW.sky);
+  S.background.lerp(col,Math.min(1,dt*2));
+  S.fog.color.copy(S.background);
+ }
+}
+
+// Input
+let sx=0,sy=0;
+addEventListener('pointerdown',e=>{sx=e.clientX;sy=e.clientY});
+addEventListener('pointerup',e=>{
+ const dx=e.clientX-sx,dy=e.clientY-sy;
+ if(!run){
+  if(Math.abs(dx)<20&&Math.abs(dy)<20&&(!dead||performance.now()-deadAt>500)){
+   reset();$('msg').style.display='none';run=true;
+  }
+  return;
+ }
+ if(Math.abs(dx)<25&&Math.abs(dy)<25)return;
+ if(Math.abs(dx)>Math.abs(dy))act(dx>0?'r':'l');else act(dy<0?'u':'d');
+});
+addEventListener('keydown',e=>{
+ const k={ArrowLeft:'l',ArrowRight:'r',ArrowUp:'u',ArrowDown:'d',' ':'u'}[e.key];
+ if(k&&run)act(k);
+});
+function act(a){
+ if(a==='l')lane=Math.max(0,lane-1);
+ else if(a==='r')lane=Math.min(2,lane+1);
+ else if(a==='u'&&py===0){vy=11;sl=0}
+ else if(a==='d'){sl=.6;if(py>0)vy=-18}
+}
+
+reset();
+let last=performance.now();
+(function loop(now){
+ requestAnimationFrame(loop);
+ const dt=Math.min(.05,(now-last)/1000);last=now;
+ if(run)update(dt);
+ else if(!dead)for(const t of tiles)t.position.z+=0;
+ cam(dt);
+ R.render(S,C);
+})(last);
+</script>
+</body></html>
