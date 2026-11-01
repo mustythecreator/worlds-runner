@@ -13,7 +13,7 @@ canvas{display:block}
 <div id="hud"><span id="sc">0 m</span><span id="wn"></span><span id="co">🪙 0</span></div>
 <div id="st">Stumbled! Avoid the next one</div>
 <div id="msg"><h1>Worlds Runner</h1><p>Swipe ← → to change lane</p><p>Swipe ↑ to jump · ↓ to slide</p><p><b>Tap to start</b></p><p><button id="skin" style="font:600 17px sans-serif;padding:10px 18px;border-radius:22px;border:1px solid #fff8;background:#0006;color:#fff">Runner: Hero  ▶</button></p>
-<p id="dbg" style="font-size:13px;opacity:.85;max-width:90%;word-break:break-all">v2 · loading character…</p></div>
+<p id="dbg" style="font-size:13px;opacity:.85;max-width:90%;word-break:break-all">v3 · loading character…</p></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
@@ -207,13 +207,13 @@ function bvar(F,N){
   for(let i=0;i<dep;i++)for(const sz of[-N,N])add('Wall',1+2*i,f*H,sz,Math.PI/2)}
  for(let j=0;j<N;j++){const z=(j-(N-1)/2)*2;add('Border High',0,F*H,z,0);for(let i=0;i<dep;i++)add('Roof Flat Center',1+2*i,F*H,z,0)}
  try{
-  const U=THREE.BufferGeometryUtils,v={c:gc.length?U.mergeBufferGeometries(gc):null,g:gg.length?U.mergeBufferGeometries(gg):null,mc,mg};
+  const U=THREE.BufferGeometryUtils,v={c:gc.length?U.mergeBufferGeometries(gc):null,g:gg.length?U.mergeBufferGeometries(gg):null,mc,mg,dz:(Math.floor(N/2)-(N-1)/2)*2};
   return bvar.c[key]=v;
  }catch(e){console.warn('merge failed',e);return bvar.c[key]=null}
 }
 function bld(){ // one assembled building (or null if the kit isn't loaded)
  const v=bvar(2+Math.floor(Math.random()*4),2+Math.floor(Math.random()*2));if(!v||!v.c)return null;
- const g=new THREE.Group();
+ const g=new THREE.Group();g.userData.dz=v.dz;
  const tint=bld.t||(bld.t=BT.map(c=>{const m=v.mc.clone();m.color.setHex(c);return m}));
  g.add(new THREE.Mesh(v.c,tint[Math.floor(Math.random()*tint.length)]));
  if(v.g)g.add(new THREE.Mesh(v.g,v.mg));
@@ -242,13 +242,30 @@ function walker(t,n,x0,dir,y,z){
  const clip=THREE.AnimationClip.findByName(e.a,'Walk');
  if(clip){const m=new THREE.AnimationMixer(o);const a=m.clipAction(clip);a.timeScale=.9;a.time=Math.random();a.play();t.userData.mx.push(m)}
 }
-function overpass(t){ // footbridge over the road with people walking across
- const P=0x8c8c92;
- t.add(mk('box',P,0,5.4,0,11.8,.5,3));
- for(const sx of[-5.3,5.3])t.add(mk('box',0x77777c,sx,2.6,0,.9,5.2,2.4));
- for(const sz of[-1.4,1.4]){t.add(mk('box',0x55555a,0,6.25,sz,11.8,.1,.1));for(let i=-5;i<=5;i+=2.5)t.add(mk('box',0x55555a,i,5.9,sz,.08,.7,.08))}
- const names=['Casual','Worker','Suit'];
- for(let i=0;i<3;i++)walker(t,names[Math.floor(Math.random()*3)],-4+i*3,Math.random()<.5?1:-1,5.65,(Math.random()-.5)*1.6);
+const TMc={};
+function bmat(c){return TMc[c]||(TMc[c]=new THREE.MeshBasicMaterial({color:c}))}
+function tlight(t,x,z,toRoad,face){ // traffic light on the kerb; face=+1 looks down the road toward +z, -1 toward -z
+ const g=new THREE.Group(),D=0x2f3238,hx=toRoad*1.1,cols=[0xff2a2a,0xffc02a,0x30e060],on=Math.floor(Math.random()*3);
+ g.add(mk('cyl',D,0,2.2,0,.18,4.4,.18));g.add(mk('box',D,toRoad*.55,4.4,0,1.1,.12,.12));g.add(mk('box',0x1d1f23,hx,4.1,0,.5,1.25,.34));
+ G.disc=G.disc||new THREE.CircleGeometry(.14,14);
+ for(let i=0;i<3;i++){
+  const c=cols[i],m=new THREE.Mesh(G.disc,bmat(i===on?c:((c>>2)&0x3f3f3f)));
+  m.position.set(hx,4.1+.38-i*.38,face*.175);if(face<0)m.rotation.y=Math.PI;g.add(m);
+  if(i===on){const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:fxm().gl.map,color:c,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,opacity:.8}));sp.position.set(hx,4.1+.38-i*.38,face*.3);sp.scale.set(1.1,1.1,1);g.add(sp)}
+ }
+ g.position.set(x,0,z);t.add(g);
+}
+function bridge(t,z){ // low footbridge: slide under it. Stairs at both ends, walkers on top, traffic lights beside it
+ t.children.filter(m=>(m.userData.sw&&Math.abs(m.position.z-z)<5)||(m.userData.pk&&Math.abs(m.position.z-z)<5.8)).forEach(m=>t.remove(m));
+ const g=new THREE.Group(),P=0x8c8c92,D=0x55555a;
+ g.add(mk('box',P,0,1.75,0,11.4,.5,3));
+ for(const sx of[-5.1,5.1])g.add(mk('box',0x77777c,sx,.75,0,.7,1.5,2.4));
+ for(const sz of[-1.4,1.4]){g.add(mk('box',D,0,2.9,sz,11.4,.1,.1));for(let i=-5;i<=5;i+=2.5)g.add(mk('box',D,i,2.45,sz,.08,.9,.08))}
+ for(const q of[[-4.7,-1],[4.7,1]])for(let i=0;i<6;i++){const h=2-(i+1)*.333;g.add(mk('box',0x77777c,q[0],h/2,q[1]*(1.75+i*.5),1.2,h,.5))}
+ g.position.z=z;item(t,g,'high');g.userData.hl=1.6;
+ const nm=['Casual','Worker','Suit'];
+ for(let i=0;i<2;i++)walker(t,nm[Math.floor(Math.random()*3)],0,Math.random()<.5?1:-1,2.0,z+(i?.6:-.6));
+ tlight(t,-4.95,z+3.4,1,1);tlight(t,4.95,z-3.4,-1,-1);
 }
 function bgeo(h){ // building box with texture scaled to its height (cached by height)
  const k=Math.round(h/2);bgeo.c=bgeo.c||{};if(bgeo.c[k])return bgeo.c[k];
@@ -313,7 +330,7 @@ const dbg=t=>{const d=document.getElementById('dbg');if(d)d.textContent=t};
 THREE.DefaultLoadingManager.onError=u=>dbg('✗ could not load: '+u);
 let ready=false;
 THREE.DefaultLoadingManager.onProgress=(u,i,t)=>{if(!ready)dbg('Loading '+i+' / '+t+' files…')};
-THREE.DefaultLoadingManager.onLoad=()=>{ready=true;dbg('v2 · ✓ ready')};
+THREE.DefaultLoadingManager.onLoad=()=>{ready=true;dbg('v3 · ✓ ready')};
 THREE.DefaultLoadingManager.setURLModifier(u=>u.indexOf('/superhero/')<0?u:u.replace('T_Eye_Normal_png.png','T_Eye_Normal.png').replace('T_Hair_1_BaseColor.png','T_Hair_1_BaseColor_png.png').replace('T_Hair_1_Normal_png.png','T_Hair_1_Normal.png'));
 const GL=new THREE.GLTFLoader();
 // Jungle props (Quaternius Stylized Nature MegaKit); old shapes stay as fallback
@@ -335,7 +352,7 @@ PN.forEach(n=>GL.load('assets/jungle/'+n+'.gltf',g=>{PR[n]=g.scene;fin()},null,(
 function fin(){if(++pd===PN.length+WN.length+PBN.length+PCN.length+NN.length){dbg('✓ ready · jungle '+Object.keys(PR).length+'/'+PN.length+' · water '+Object.keys(PW).length+'/'+WN.length+' · city '+Object.keys(PB).length+'/'+PBN.length+' · props '+Object.keys(PC).length+'/'+PCN.length+' · walkers '+Object.keys(NPC).length+'/'+NN.length);if(!run)tiles.forEach(t=>build(t,t.userData.idx))}}
 // ---- Runner skins: the Superhero (UAL animations) + dressed characters (own animations)
 const SK=[
- {id:'hero',name:'Hero',type:'ual',hair:['Hair_SimpleParted','Eyebrows_Regular'],file:'assets/characters/superhero/Superhero_Male_FullBody.gltf'},
+ {id:'hero',name:'Hero',type:'ual',hair:['Hair_Buzzed','Eyebrows_Regular'],file:'assets/characters/superhero/Superhero_Male_FullBody.gltf'},
  {id:'Casual',name:'Casual',type:'mod',file:'assets/characters/women/Casual.gltf'},
  {id:'Worker',name:'Worker',type:'mod',file:'assets/characters/women/Worker.gltf'},
  {id:'Suit',name:'Suit',type:'mod',file:'assets/characters/women/Suit.gltf'},
@@ -349,7 +366,17 @@ function addHair(h,n){ // static hair (origin at 0) locked to the Head bone
   const m=g.scene;m.matrix.copy(new THREE.Matrix4().copy(head.matrixWorld).invert().multiply(h.matrixWorld));
   m.matrix.decompose(m.position,m.quaternion,m.scale);head.add(m);
   const d=document.getElementById('dbg');if(d)d.textContent+=' · hair ✓';
- },null,()=>{const d=document.getElementById('dbg');if(d)d.textContent+=' · ✗ hair missing ('+n+')'});
+ },null,()=>{if(/^Hair_/.test(n))return capHair(h);const d=document.getElementById('dbg');if(d)d.textContent+=' · ✗ hair missing ('+n+')'});
+}
+function capHair(h){ // fallback short male hair: a dark cap on the head bone
+ const head=h.getObjectByName('Head');if(!head)return;h.updateMatrixWorld(true);
+ const hp=h.worldToLocal(head.getWorldPosition(new THREE.Vector3()));
+ const cap=new THREE.Mesh(new THREE.SphereGeometry(.125,16,12,0,Math.PI*2,0,Math.PI*.58),new THREE.MeshStandardMaterial({color:0x2a1c14,roughness:.9}));
+ cap.scale.set(1,.95,1.08);
+ const L=new THREE.Matrix4().compose(new THREE.Vector3(hp.x,hp.y+.1,hp.z-.005),new THREE.Quaternion(),new THREE.Vector3(1,1,1));
+ cap.matrix.copy(new THREE.Matrix4().copy(head.matrixWorld).invert().multiply(h.matrixWorld).multiply(L));
+ cap.matrix.decompose(cap.position,cap.quaternion,cap.scale);head.add(cap);
+ const d=document.getElementById('dbg');if(d)d.textContent+=' · hair cap (no Hair_Buzzed file)';
 }
 function loadSkin(id){
  const sk=SK.find(x=>x.id===id)||SK[0];
@@ -414,19 +441,23 @@ function build(t,idx){
    t.add(mk('cyl',0x5a3b1e,x,1.5,z,.6,3,.6));
    t.add(mk('cone',0x1f6b2a,x,4,z,3,3.5,3));
   }else{
-   const b=bld();
-   if(b){b.position.set(s*(7.6+Math.random()*1),0,z);if(s<0)b.rotation.y=Math.PI;t.add(b)}
+   const b=bld(),dz=b?(s<0?-1:1)*(b.userData.dz||0):0;
+   if(b){b.position.set(s*(8.6+Math.random()),0,z);if(s<0)b.rotation.y=Math.PI;t.add(b)}
    else{const bm=new THREE.Mesh(bgeo(6+Math.random()*10),cmat().walls[k%3]);bm.position.set(x,bm.geometry.parameters.height/2,z);t.add(bm)}
-   if(Math.random()<.4){const c=pc(['Taxi','Car','SUV','Sports Car','Pickup Truck'][Math.floor(Math.random()*5)],4.2,'z');
-    if(c){c.position.set(s*6.4,0,z+(Math.random()-.5)*4);c.rotation.y=Math.random()<.5?0:Math.PI;t.add(c)}}
-   if(Math.random()<.5){const P=[['Fire hydrant',.9,'y'],['Bench',1.6,'max'],['Trash Can',1.0,'y'],['Mailbox',1.3,'y'],['Traffic Light',4.6,'y'],['Bus Stop',3,'max'],['Planter & Bushes',2,'max']][Math.floor(Math.random()*7)],
-     p=pc(P[0],P[1],P[2]);if(p){p.position.set(s*(4.4+Math.random()*.6),.03,z+(Math.random()-.5)*5);p.rotation.y=s>0?-Math.PI/2:Math.PI/2;t.add(p)}}
+   const r2=Math.random();
+   if(r2<.3){ // parked car, nose toward the house
+    const c=pc(['Taxi','Car','SUV','Sports Car','Pickup Truck'][Math.floor(Math.random()*5)],3.4,'z');
+    if(c){c.position.set(s*6.5,0,z+dz+(Math.random()-.5)*2);c.rotation.y=s>0?Math.PI/2:-Math.PI/2;c.userData.pk=1;t.add(c)}
+   }else{
+    if(r2<.55){const mb=pc('Mailbox',1.2,'y');if(mb){mb.position.set(s*6.7,0,z+dz+1.5);mb.rotation.y=s>0?-Math.PI/2:Math.PI/2;t.add(mb)}} // on the lawn in front of the house
+    if(Math.random()<.5){const P=[['Fire hydrant',.9,'y'],['Bench',1.6,'max'],['Trash Can',1.0,'y'],['Bus Stop',3,'max'],['Planter & Bushes',2,'max']][Math.floor(Math.random()*5)],
+     p=pc(P[0],P[1],P[2]);if(p){p.position.set(s*(4.4+Math.random()*.6),.03,z+(Math.random()-.5)*5);p.rotation.y=s>0?-Math.PI/2:Math.PI/2;p.userData.sw=1;t.add(p)}}
+   }
   }
  }
  // coins + obstacles
  if(w.deco==='water')wprops(t,idx);
- if(w.deco==='bld'&&idx>=3&&wi%6===3)overpass(t);
- if(idx<2)return;
+  if(idx<2)return;
  if(colT){collapse(t,w);return}
  let hp=0;
  for(const z of[-12,-6,0,6,12]){
@@ -436,14 +467,18 @@ function build(t,idx){
    for(let j=-1;j<=1;j++)item(t,coin(LX[l],1,z+j*1.5),'coin');
   }else if(r<.7+.16*Math.min(1,dist/4000)&&!(idx<3&&-(t.position.z+z)<35)){ // no obstacles in the first ~35 m
    const q=Math.random();let o=w.deco==='tree'?(q<.28?0:q<.42?1:q<.72?3:4):w.deco==='water'?(q<.5?0:1):(q<.22?0:q<.34?1:q<.62?2:3);if(o===1&&since<4)o=0;if(o===1)since=0; // overhead beams need a gap
-   if(w.deco==='bld'&&(o===0||o===3)){
-    if(o===0){ // a car in your lane: change lane (some drive toward you)
-     const c=pc(['Taxi','Car','SUV','Police Car','Sports Car'][Math.floor(Math.random()*5)],4.2,'z');
-     if(c){const onc=Math.random()<.4;c.rotation.y=onc?0:Math.PI;c.position.set(LX[l],0,z);item(t,c,'wall');c.userData.hl=2.3;if(onc)c.userData.vz=9}
+   if(w.deco==='bld'&&(o===0||o===1||o===3)){
+    if(o===1){bridge(t,z)}
+    else if(o===0){ // a car in your lane: change lane (some drive toward you)
+     const nm=['Taxi','Car','SUV','Police Car','Sports Car','Pickup Truck'][Math.floor(Math.random()*6)],big=nm==='SUV'||nm==='Pickup Truck',c=pc(nm,big?4.8:3.4,'z');
+     if(c){ // small sedans (short enough) can be jumped, tall ones cannot
+      const onc=Math.random()<.4,H=new THREE.Box3().setFromObject(c).max.y,jp=H<=1.35;
+      c.rotation.y=onc?0:Math.PI;c.position.set(LX[l],0,z);item(t,c,jp?'low':'wall');c.userData.hl=jp?1.95:2.7;if(jp)c.userData.h=H*.93;if(onc)c.userData.vz=9;
+     }
      else item(t,mk('box',0xd9382b,LX[l],.45,z,2,.9,.5),'low');
     }else{ // dumpster or cones: jump over
      const k=Math.random();let o2=null,h=.7;
-     if(k<.45){o2=pc('Dumpster',2.2,'max');h=1.2}
+     if(k<.45){o2=pc('Dumpster',1.0,'y');if(o2)o2.rotation.y=Math.PI/2;h=.9}
      else if(PC['Cone']){o2=new THREE.Group();for(const dx of[-.55,0,.55]){const c=pc('Cone',.7,'y');if(c){c.position.set(dx,0,(Math.random()-.5)*.5);o2.add(c)}}}
      if(!o2){o2=mk('box',0xd9382b,0,.45,0,2,.9,.5)}
      o2.position.set(LX[l],0,z);item(t,o2,'low');o2.userData.h=h;
@@ -474,7 +509,7 @@ function build(t,idx){
     }else item(t,mk('box',0x777777,0,2.2,z,7,.8,.8),'high');
    }else if(o===3){ // tree roots: change lane (1 or 2 lanes, sometimes at opposite sides)
     for(const ln of[[0],[1],[2],[0,2],[0,1],[1,2]][Math.floor(Math.random()*6)]){
-     const g=rootObj();g.scale.set(.55,.8,.55);g.position.set(LX[ln],0,z);item(t,g,'wall');
+     const g=rootObj();g.scale.set(.55,1.25,.55);g.position.set(LX[ln],0,z);item(t,g,'wall');
     }
    }else if(o===4){ // burning log pile: jump over it
     const ln=Math.floor(Math.random()*3),r=burnLog(),g=r[0];
@@ -489,7 +524,7 @@ function build(t,idx){
 }
 
 // Game state
-let cx=0,stm=0,jb=0,run=false,dead=false,v,dist,coins,lane,px,py,vy,sl,ph=0,curW=null,deadAt=0;
+let mag=0,cx=0,stm=0,jb=0,run=false,dead=false,v,dist,coins,lane,px,py,vy,sl,ph=0,curW=null,deadAt=0;
 const $=id=>document.getElementById(id);
 function reset(){
  tiles.forEach((t,i)=>{t.position.z=TL-i*TL;build(t,i)});
@@ -530,7 +565,7 @@ function update(dt){
    const wz=t.position.z+m.position.z;
    if(Math.abs(wz)>(m.userData.hl||.7))continue;
    const same=Math.abs(m.position.x-px)<1.1;
-   if(ty==='coin'){if(same&&py<2){m.userData.type=null;m.visible=false;coins++;$('co').textContent='🪙 '+coins}}
+   if(ty==='coin'){if(same&&(mag>0?py<3:py<.75)){m.userData.type=null;m.visible=false;coins++;$('co').textContent='🪙 '+coins}}
    else if(ty==='high'){if(sl<=0)return over()}
    else if(ty==='low'){if(same&&py<(m.userData.h||.8))return over()}
    else if(ty==='hole'){if(same&&py<.15){m.userData.type='holed';if(stm>0)return over();stm=1.3}}
