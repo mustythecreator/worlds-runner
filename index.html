@@ -439,7 +439,7 @@ function lamp(t,s,z){ // street lamp on the kerb, arm reaching over the road
 
 // ---- power-ups: magnet, score x2-5, coins x2-5, jump boots, hover mat (all built in code)
 const PUA={1:'1',mag:'mag',magnet:'mag',sx:'sx',score:'sx',cx:'cx',coin:'cx',coins:'cx',boot:'boot',boots:'boot',jump:'boot',mat:'mat',hover:'mat',hoverboard:'mat'};
-const PUI=PUA[(new URLSearchParams(location.search).get('pu')||'').toLowerCase()]||null; // test: ?pu=1 (every gap) or ?pu=mag|sx|cx|boot|mat
+const PUI=PUA[((q=>q.get('pu')||q.get('pv'))(new URLSearchParams(location.search))||'').toLowerCase()]||null; // test: ?pu=1 (every gap) or ?pu=mag|sx|cx|boot|mat
 const PUTH={tree:[0x3f9b4a,0xffd24a],bld:[0xd9382b,0xdfe3e8],water:[0x1fb5c9,0xf2f6f8]}; // magnet body / tip colour per world
 const EMM={};function emat(c,i){const k=c+'_'+i;return EMM[k]||(EMM[k]=new THREE.MeshLambertMaterial({color:c,emissive:c,emissiveIntensity:i}))}
 function glow(c,sc,op){const q=new THREE.Sprite(new THREE.SpriteMaterial({map:fxm().gl.map,color:c,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,opacity:op}));q.scale.set(sc,sc,1);return q}
