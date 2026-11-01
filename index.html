@@ -9,18 +9,20 @@ canvas{display:block}
 #msg{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;text-align:center;background:rgba(0,0,0,.5);text-shadow:0 2px 4px #000}
 #st{position:fixed;top:24%;left:0;right:0;text-align:center;color:#ffb36b;font:700 24px sans-serif;text-shadow:0 2px 6px #000;opacity:0;transition:opacity .15s;pointer-events:none}
 #sc small{display:block;font-size:13px;opacity:.85}
-#pu{position:fixed;top:calc(env(safe-area-inset-top,0px) + 66px);left:0;right:0;display:flex;gap:6px;justify-content:center;flex-wrap:wrap;pointer-events:none}
-.pl{position:relative;overflow:hidden;padding:4px 10px 6px;border-radius:14px;font:700 13px sans-serif;color:#fff;text-shadow:0 1px 2px #000;box-shadow:0 2px 6px #0008}
-.pl i{position:absolute;left:0;bottom:0;height:3px;background:#fffa}
-#toast{position:fixed;top:30%;left:0;right:0;text-align:center;color:#fff;font:800 30px sans-serif;text-shadow:0 2px 8px #000;opacity:0;transition:opacity .25s;pointer-events:none}
+#pu{position:fixed;top:calc(env(safe-area-inset-top,0px) + 68px);left:10px;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+.pr{display:flex;align-items:center;gap:6px}
+.pr img{width:44px;height:44px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px #0008;background:#1b2447}
+.pr b{display:block;width:120px;height:14px;border-radius:8px;background:#1b2447;border:2px solid #fff;overflow:hidden;box-shadow:0 2px 6px #0008}
+.pr i{display:block;height:100%;transition:width .15s linear}
+#flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .35s}
 #msg h1{font-size:36px;margin:0 0 10px}#msg p{margin:4px 0;font-size:17px}
 </style></head><body>
 <div id="hud"><span id="sc">0<small>0 m</small></span><span id="wn"></span><span id="co">🪙 0</span></div>
-<div id="pu"></div><div id="toast"></div>
+<div id="pu"></div><div id="flash"></div>
 <div id="st">Stumbled! Avoid the next one</div>
 <div id="msg"><h1>Worlds Runner</h1><p>Swipe ← → to change lane</p><p>Swipe ↑ to jump · ↓ to slide</p><p><b>Tap to start</b></p><p><button id="skin" style="font:600 17px sans-serif;padding:10px 18px;border-radius:22px;border:1px solid #fff8;background:#0006;color:#fff">Runner: Hero  ▶</button></p>
 <p id="dbg2" style="font-size:12px;opacity:.8;max-width:90%;word-break:break-all;margin:2px 0"></p>
-<p id="dbg" style="font-size:13px;opacity:.85;max-width:90%;word-break:break-all">v5 · loading character…</p></div>
+<p id="dbg" style="font-size:13px;opacity:.85;max-width:90%;word-break:break-all">v6 · loading character…</p></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
@@ -134,7 +136,7 @@ function collapse(t,w){ // bridge section: two lanes sink as you approach, one s
   if(ln!==ls)t.userData.col.push({m,k:0,on:0,r:(Math.random()<.5?-1:1)*(.4+Math.random()*.5)});
  }
  for(const sx of[-3.6,3.6])t.add(mk('box',0x5a3f26,sx,-.12,0,.8,.25,TL));
- for(let i=-2;i<=2;i++)item(t,coin(LX[ls],1,i*6),'coin');
+ for(let ln=0;ln<3;ln++)for(let i=-2;i<=2;i++)coinAt(t,LX[ln],1,i*6+(ln-1)*1.5); // all lanes, so coins don't reveal the safe one
 }
 function colUpd(dt){for(const t of tiles)for(const p of t.userData.col||[]){
  if(!p.on&&t.position.z+p.m.position.z>-34)p.on=1;
@@ -342,7 +344,7 @@ const dbg=t=>{const d=document.getElementById('dbg');if(d)d.textContent=t};
 THREE.DefaultLoadingManager.onError=u=>dbg('✗ could not load: '+u);
 let ready=false;
 THREE.DefaultLoadingManager.onProgress=(u,i,t)=>{if(!ready)dbg('Loading '+i+' / '+t+' files…')};
-THREE.DefaultLoadingManager.onLoad=()=>{ready=true;dbg('v5 · ✓ ready')};
+THREE.DefaultLoadingManager.onLoad=()=>{ready=true;dbg('v6 · ✓ ready')};
 THREE.DefaultLoadingManager.setURLModifier(u=>u.indexOf('/superhero/')<0?u:u.replace('T_Eye_Normal_png.png','T_Eye_Normal.png').replace('T_Hair_1_BaseColor.png','T_Hair_1_BaseColor_png.png').replace('T_Hair_1_Normal_png.png','T_Hair_1_Normal.png'));
 const GL=new THREE.GLTFLoader();
 // Jungle props (Quaternius Stylized Nature MegaKit); old shapes stay as fallback
@@ -436,28 +438,31 @@ function lamp(t,s,z){ // street lamp on the kerb, arm reaching over the road
 }
 
 // ---- power-ups: magnet, score x2-5, coins x2-5, jump boots, hover mat (all built in code)
-const PUI=new URLSearchParams(location.search).get('pu'); // test: ?pu=1 (every gap) or ?pu=mag|sx|cx|boot|mat
+const PUA={1:'1',mag:'mag',magnet:'mag',sx:'sx',score:'sx',cx:'cx',coin:'cx',coins:'cx',boot:'boot',boots:'boot',jump:'boot',mat:'mat',hover:'mat',hoverboard:'mat'};
+const PUI=PUA[(new URLSearchParams(location.search).get('pu')||'').toLowerCase()]||null; // test: ?pu=1 (every gap) or ?pu=mag|sx|cx|boot|mat
 const PUTH={tree:[0x3f9b4a,0xffd24a],bld:[0xd9382b,0xdfe3e8],water:[0x1fb5c9,0xf2f6f8]}; // magnet body / tip colour per world
 const EMM={};function emat(c,i){const k=c+'_'+i;return EMM[k]||(EMM[k]=new THREE.MeshLambertMaterial({color:c,emissive:c,emissiveIntensity:i}))}
 function glow(c,sc,op){const q=new THREE.Sprite(new THREE.SpriteMaterial({map:fxm().gl.map,color:c,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,opacity:op}));q.scale.set(sc,sc,1);return q}
 function toast(t){const e=document.getElementById('toast');e.textContent=t;e.style.opacity=1;clearTimeout(toast.h);toast.h=setTimeout(()=>e.style.opacity=0,1200)}
-function magnetObj(th){
+function magnetObj(th,ng){
  const c=PUTH[th]||PUTH.bld,g=new THREE.Group(),b=new THREE.Group();
  G.arc=G.arc||new THREE.TorusGeometry(.3,.1,10,18,Math.PI);G.leg=G.leg||new THREE.CylinderGeometry(.1,.1,.32,10);G.tip=G.tip||new THREE.CylinderGeometry(.108,.108,.15,10);
  b.add(new THREE.Mesh(G.arc,emat(c[0],.35)));
  for(const x of[-.3,.3]){const l=new THREE.Mesh(G.leg,emat(c[0],.35));l.position.set(x,-.16,0);b.add(l);const t=new THREE.Mesh(G.tip,emat(c[1],.3));t.position.set(x,-.36,0);b.add(t)}
- b.rotation.z=Math.PI;b.position.y=.02;g.add(b);g.add(glow(c[0],1.9,.5));g.scale.setScalar(1.15);return g;
+ b.rotation.z=Math.PI;b.position.y=.02;g.add(b);if(!ng)g.add(glow(c[0],1.9,.5));g.scale.setScalar(1.15);return g;
+}
+function bootOne(){
+ const b=new THREE.Group(),o=emat(0xff7a1a,.35),y=emat(0xffd24a,.4),sv=emat(0xcfd6dd,.15);
+ G.coil=G.coil||new THREE.TorusGeometry(.1,.025,6,12);
+ const part=(m,sx,sy,sz,px,py,pz)=>{const q=new THREE.Mesh(G.box,m);q.scale.set(sx,sy,sz);q.position.set(px,py,pz);b.add(q)};
+ part(o,.24,.14,.44,0,0,.06);part(o,.22,.34,.24,0,.22,-.06);part(y,.26,.08,.28,0,.42,-.06);
+ for(let i=0;i<3;i++){const q=new THREE.Mesh(G.coil,sv);q.rotation.x=Math.PI/2;q.position.set(0,-.12-i*.07,.05);b.add(q)}
+ return b;
 }
 function bootsObj(){
- const g=new THREE.Group(),o=emat(0xff7a1a,.35),y=emat(0xffd24a,.4),s=emat(0xcfd6dd,.15);
- G.coil=G.coil||new THREE.TorusGeometry(.1,.025,6,12);
- for(const x of[-.22,.22]){
-  const b=new THREE.Group(),part=(m,sx,sy,sz,px,py,pz)=>{const q=new THREE.Mesh(G.box,m);q.scale.set(sx,sy,sz);q.position.set(px,py,pz);b.add(q)};
-  part(o,.24,.14,.44,0,0,.06);part(o,.22,.34,.24,0,.22,-.06);part(y,.26,.08,.28,0,.42,-.06);
-  for(let i=0;i<3;i++){const q=new THREE.Mesh(G.coil,s);q.rotation.x=Math.PI/2;q.position.set(0,-.12-i*.07,.05);b.add(q)}
-  b.position.x=x;g.add(b);
- }
- g.add(glow(0xff9a2a,1.8,.5));g.position.y=0;return g;
+ const g=new THREE.Group();
+ for(const x of[-.22,.22]){const b=bootOne();b.position.x=x;g.add(b)}
+ g.add(glow(0xff9a2a,1.8,.5));return g;
 }
 function badgeTex(kind,n){
  badgeTex.c=badgeTex.c||{};const key=kind+n;if(badgeTex.c[key])return badgeTex.c[key];
@@ -496,59 +501,100 @@ function matObj(sc){ // floating mat: patterned rug with tassels and a cyan glow
  gl.rotation.x=-Math.PI/2;gl.position.y=-.1;gl.scale.set(2.6,3.2,1);g.add(gl);g.scale.setScalar(sc);return g;
 }
 function waveMat(g,t){const geo=g.userData.geo,a=geo.attributes.position.array,o=g.userData.o;for(let i=0;i<a.length;i+=3)a[i+1]=Math.sin(o[i]*3.2+t*4)*.035+Math.sin(o[i+2]*2.4-t*5)*.035;geo.attributes.position.needsUpdate=true}
-const AU={};let MT=null;
+const AU={};let MT=null,HM=null,HB=null,HBroot=null,FBM=[],FB=[null,null];
+const _v=new THREE.Vector3();
 function fxInit(){
  if(fxInit.d)return;fxInit.d=1;
- AU.m=glow(0xff4a4a,3.2,.5);AU.m.position.y=1;AU.m.visible=false;FX.add(AU.m);
  AU.b=new THREE.Mesh(G.plane,new THREE.MeshBasicMaterial({map:fxm().gl.map,color:0xffa21a,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,opacity:.85}));
  AU.b.rotation.x=-Math.PI/2;AU.b.position.y=.05;AU.b.scale.set(2.4,2.4,1);AU.b.visible=false;FX.add(AU.b);
  MT=matObj(1);MT.position.y=.3;MT.visible=false;FX.add(MT);
+ for(let i=0;i<2;i++){const b=bootOne();b.scale.setScalar(.6);b.rotation.y=Math.PI;b.visible=false;FX.add(b);FBM.push(b)}
 }
-function fxOff(){if(fxInit.d){AU.m.visible=AU.b.visible=MT.visible=false}P.visible=true}
+function fxOff(){if(fxInit.d){AU.b.visible=MT.visible=false;if(HM)HM.visible=false;FBM.forEach(b=>b.visible=false)}P.visible=true}
+function findBone(re){let r=null;P.traverse(o=>{if(!r&&o.isBone&&re.test(o.name))r=o});return r}
+function heldFx(tm){ // magnet in the right hand, boots on the feet (world-aligned, follow the bones)
+ const root=P.children[0];
+ if(root!==HBroot){HBroot=root;
+  HB=findBone(/^(hand[_.\- ]?r|r[_.\- ]?hand|.*right.?hand)$/i);
+  FB=[findBone(/^(foot[_.\- ]?l|l[_.\- ]?foot|.*left.?foot)$/i),findBone(/^(foot[_.\- ]?r|r[_.\- ]?foot|.*right.?foot)$/i)];
+  d2('hand: '+(HB?HB.name:'none')+' · feet: '+(FB[0]?FB[0].name:'none')+'/'+(FB[1]?FB[1].name:'none'))}
+ if(HM){HM.visible=mag>0;if(mag>0){
+  if(HB){HB.getWorldPosition(_v);HM.position.set(_v.x-FX.position.x,_v.y-FX.position.y+.12,_v.z-FX.position.z)}else HM.position.set(.42,1.05,0);
+  HM.rotation.z=Math.sin(tm*7)*.2}}
+ for(let i=0;i<2;i++){const b=FBM[i],bn=FB[i];b.visible=bootT>0&&!!bn;if(b.visible){bn.getWorldPosition(_v);b.position.set(_v.x-FX.position.x,_v.y-FX.position.y-.1,_v.z-FX.position.z)}}
+}
+function flash(a){const e=document.getElementById('flash');e.style.opacity=a;setTimeout(()=>e.style.opacity=0,80)}
 function puPick(){
  if(PUI&&PUI!=='1')return PUI;
  const T=[['mag',24],['sx',20],['cx',20],['boot',20],['mat',16]];let tot=0;
- const ws=T.map(q=>{const m=q[0]===GEN.lastPu?q[1]*.25:q[1];tot+=m;return[q[0],m]});
+ const ws=T.map(q=>{const m=GEN.puHist.includes(q[0])?q[1]*.15:q[1];tot+=m;return[q[0],m]});
  let r=Math.random()*tot;for(const q of ws){r-=q[1];if(r<=0)return q[0]}return'mag';
 }
 function puAt(t,w,z,ln){
- const k=puPick();GEN.lastPu=k;
- const n=(k==='sx'||k==='cx')?[2,2,2,2,3,3,3,4,4,5][Math.floor(Math.random()*10)]:0;
- let o=k==='mag'?magnetObj(w.deco):k==='boot'?bootsObj():k==='mat'?matObj(.4):badgeObj(k,n);
- if(k==='mat'){const wr=new THREE.Group();o.rotation.x=.5;wr.add(o);o=wr}
- o.position.set(LX[ln],1.15,z);item(t,o,'pu');o.userData.k=k;o.userData.n=n;o.userData.hl=1.3;
+ const k=puPick();GEN.lastPu=k;GEN.puHist.push(k);if(GEN.puHist.length>2)GEN.puHist.shift();
+ try{
+  const n=(k==='sx'||k==='cx')?[2,2,2,2,3,3,3,4,4,5][Math.floor(Math.random()*10)]:0;
+  let o=k==='mag'?magnetObj(w.deco):k==='boot'?bootsObj():k==='mat'?matObj(.4):badgeObj(k,n);
+  if(k==='mat'){const wr=new THREE.Group();o.rotation.x=.5;wr.add(o);o=wr}
+  o.position.set(LX[ln],1.15,z);item(t,o,'pu');o.userData.k=k;o.userData.n=n;o.userData.hl=1.3;
+ }catch(err){d2('pickup '+k+' error: '+err.message)}
 }
 function grab(k,n){
  fxInit();const th=(curW&&curW.deco)||'bld';
- if(k==='mag'){mag=10;AU.m.material.color.setHex((PUTH[th]||PUTH.bld)[0]);toast('MAGNET!')}
- else if(k==='sx'){sm=n;smT=12;toast('SCORE \u00d7'+n+'!')}
- else if(k==='cx'){cm=n;cmT=12;toast('COINS \u00d7'+n+'!')}
- else if(k==='boot'){bootT=12;toast('JUMP BOOTS!')}
- else if(k==='mat'){matT=20;toast('HOVER MAT! Saves you from one crash')}
+ if(k==='mag'){mag=10;if(HM)FX.remove(HM);HM=magnetObj(th,true);HM.scale.setScalar(.5);FX.add(HM)}
+ else if(k==='sx'){sm=n;smT=12}
+ else if(k==='cx'){cm=n;cmT=12}
+ else if(k==='boot')bootT=12;
+ else if(k==='mat')matT=20;
 }
 function hit(){ // true = really crashed; a hover mat absorbs one crash, then 2 s of safety
  if(inv>0)return false;
- if(matT>0){matT=0;inv=2;toast('HOVER MAT SAVED YOU!');return false}
+ if(matT>0){matT=0;inv=2;flash(.55);return false}
  over();return true;
 }
-let lastPU='';
-function puHud(){
- const a=[];
- if(mag>0)a.push(['\ud83e\uddf2 MAGNET',mag,10,'#e0453a']);
- if(smT>0)a.push(['\u2b50 SCORE \u00d7'+sm,smT,12,'#8a4bff']);
- if(cmT>0)a.push(['\ud83e\ude99 COINS \u00d7'+cm,cmT,12,'#d9980a']);
- if(bootT>0)a.push(['\ud83d\udc5f JUMP BOOTS',bootT,12,'#ff7a1a']);
- if(matT>0)a.push(['\ud83c\udf00 HOVER MAT',matT,20,'#1fb5c9']);
- const h=a.map(q=>'<span class="pl" style="background:'+q[3]+'">'+q[0]+' '+Math.ceil(q[1])+'<i style="width:'+Math.round(q[1]/q[2]*20)*5+'%"></i></span>').join('');
- if(h!==lastPU){lastPU=h;document.getElementById('pu').innerHTML=h}
+const PUC={mag:'#e0453a',sx:'#a66bff',cx:'#ffc030',boot:'#ff7a1a',mat:'#33d0e0'},PRW={};
+function puIcon(k,n){
+ puIcon.c=puIcon.c||{};const key=k+n;if(puIcon.c[key])return puIcon.c[key];
+ const c=document.createElement('canvas');c.width=c.height=64;const g=c.getContext('2d');
+ g.fillStyle='#1b2447';g.beginPath();g.arc(32,32,32,0,6.3);g.fill();g.lineCap='round';
+ const txt=(t,y)=>{g.textAlign='center';g.font='bold 20px sans-serif';g.lineWidth=4;g.strokeStyle='#000';g.strokeText(t,32,y);g.fillStyle='#fff';g.fillText(t,32,y)};
+ if(k==='mag'){
+  g.lineWidth=11;g.strokeStyle='#e0453a';g.beginPath();g.arc(32,32,14,0,Math.PI);g.stroke();
+  g.beginPath();g.moveTo(18,32);g.lineTo(18,18);g.moveTo(46,32);g.lineTo(46,18);g.stroke();
+  g.fillStyle='#fff';g.fillRect(12,12,12,9);g.fillRect(40,12,12,9);
+ }else if(k==='sx'||k==='cx'){
+  const sx=k==='sx';g.fillStyle=sx?'#a66bff':'#ffc030';g.beginPath();g.arc(32,27,18,0,6.3);g.fill();
+  if(sx){g.fillStyle='#fff';g.beginPath();for(let i=0;i<10;i++){const r=i%2?7:16,a=-Math.PI/2+i*Math.PI/5;g.lineTo(32+Math.cos(a)*r,27+Math.sin(a)*r)}g.closePath();g.fill()}
+  else{g.strokeStyle='#8a5200';g.lineWidth=4;g.beginPath();g.arc(32,27,11,0,6.3);g.stroke()}
+  txt('\u00d7'+n,56);
+ }else if(k==='boot'){
+  g.fillStyle='#ff7a1a';g.beginPath();g.moveTo(20,14);g.lineTo(35,14);g.lineTo(35,31);g.lineTo(51,38);g.lineTo(51,48);g.lineTo(17,48);g.closePath();g.fill();
+  g.fillStyle='#ffd24a';g.fillRect(19,10,17,7);g.fillStyle='#fff';g.fillRect(15,46,38,6);
+ }else{
+  g.fillStyle='#7b1e3a';g.fillRect(12,19,40,26);g.strokeStyle='#e8b84a';g.lineWidth=3;g.strokeRect(15,22,34,20);
+  g.fillStyle='#2fb5b0';g.beginPath();g.moveTo(32,24);g.lineTo(42,32);g.lineTo(32,40);g.lineTo(22,32);g.closePath();g.fill();
+  g.fillStyle='#59e0ff';g.fillRect(16,49,32,4);
+ }
+ return puIcon.c[key]=c.toDataURL();
 }
+function puRow(k){
+ if(PRW[k])return PRW[k];
+ const d=document.createElement('div');d.className='pr';d.style.display='none';
+ const im=new Image(),b=document.createElement('b'),i=document.createElement('i');i.style.background=PUC[k];b.appendChild(i);d.append(im,b);
+ document.getElementById('pu').appendChild(d);return PRW[k]={d,im,i,n:-1};
+}
+function puSet(k,n,on,fr){
+ const r=puRow(k);r.d.style.display=on?'flex':'none';if(!on)return;
+ if(r.n!==n){r.n=n;r.im.src=puIcon(k,n)}r.i.style.width=Math.round(Math.max(0,fr)*100)+'%';
+}
+function puHud(){puSet('mag',0,mag>0,mag/10);puSet('sx',sm,smT>0,smT/12);puSet('cx',cm,cmT>0,cmT/12);puSet('boot',0,bootT>0,bootT/12);puSet('mat',0,matT>0,matT/20)}
 // ---- obstacle generator: one stream of events along the whole run (spacing follows speed, rules stop spam)
-const GEN={next:40,hist:[],cls:'',free:[0,1,2],pu:220,lastPu:''};
-function genReset(){GEN.next=40;GEN.hist=[];GEN.cls='';GEN.free=[0,1,2];GEN.pu=PUI?0:220;GEN.lastPu=''}
+const GEN={next:40,hist:[],cls:'',free:[0,1,2],lane:[],lastGap:20,pu:180,lastPu:'',puHist:[]};
+function genReset(){GEN.next=40;GEN.hist=[];GEN.cls='';GEN.free=[0,1,2];GEN.lane=[];GEN.lastGap=20;GEN.pu=PUI?0:180;GEN.lastPu='';GEN.puHist=[]}
 function vEst(dd){const t=(-14+Math.sqrt(196+.6*dd))/.3;return Math.min(34+dd/500,14+.3*t)}
 function pick(a){return a[Math.floor(Math.random()*a.length)]}
 function lanesN(n){const a=[0,1,2];for(let i=2;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a.slice(0,n)}
-function nLn(dd,mx){const f=Math.min(1,dd/5000),r=Math.random();let n=1;if(r<.2+.35*f)n=2;if(r<.07*f)n=3;return Math.min(n,mx)}
+function nLn(dd,mx){const f=Math.min(1,dd/3500),r=Math.random();let n=1;if(r<.2+.45*f)n=2;if(r<.12*f)n=3;return Math.min(n,mx)}
 function evTable(w){ // [name, class (J jump, W lane-block, S slide, H hole), weight, half length]
  if(w.deco==='tree')return[['rock','J',.28,2],['fire','J',.26,2],['root','W',.30,2],['fall','S',.16,2]];
  if(w.deco==='water')return[['crate','J',.55,2],['gate','S',.45,2]];
@@ -561,12 +607,39 @@ function evPick(w,dd){
   if(last&&last[0]===e[0])m*=.3;
   if(last&&l2&&last[0]===e[0]&&l2[0]===e[0])m=0; // never 3 of the same in a row
   if(e[1]==='S'&&h.slice(-2).some(x=>x[1]==='S'))m*=.1; // slides need room
-  if((e[1]==='W'||e[1]==='S')&&hardPrev)m*=dd>3000?.3:0; // no lane-block/slide right after another
+  if((e[1]==='W'||e[1]==='S')&&hardPrev)m*=dd>1500?.4:0; // no lane-block/slide right after another (allowed with room after 1500 m)
   tot+=m;return[e,m]});
  let r=Math.random()*tot,e=ws[0][0];for(const q of ws){r-=q[1];if(r<=0&&q[1]>0){e=q[0];break}}
  return{k:e[0],c:e[1],hl:e[3],gm:(e[1]==='H'?1.25:1)*((e[1]==='W'||e[1]==='S')&&hardPrev?1.5:1)};
 }
-function coinRun(t,zc,n,ln){for(let i=0;i<n;i++)item(t,coin(LX[ln],1,zc+(i-(n-1)/2)*1.6),'coin')}
+function coinAt(t,x,y,z){const c=coin(x,y,z);item(t,c,'coin');c.userData.cy=y}
+function coinRun(t,zc,n,ln,sp){sp=sp||1.6;for(let i=0;i<n;i++)coinAt(t,LX[ln],1,zc+(i-(n-1)/2)*sp)}
+const JT=.6875; // air time of a normal jump
+function arcCoins(t,ln,zc,dd,full){ // coins laid on the real jump path (speed-matched): jump to collect them
+ const v=vEst(dd),T0=full?0:.15*JT,T1=full?JT:.85*JT,N=full?9:7;
+ for(let i=0;i<N;i++){const tt=T0+(T1-T0)*i/(N-1),yj=11*tt-16*tt*tt;coinAt(t,LX[ln],1+.85*yj,zc+v*(JT/2-tt))}
+}
+function arcOver(t,ln,z,dd,room){
+ const v=vEst(dd),fit=h=>h<=room-4&&Math.abs(z)+h<13.5;
+ if(fit(v*JT/2))arcCoins(t,ln,z,dd,true);else if(fit(v*.35*JT))arcCoins(t,ln,z,dd,false);
+}
+function coinPat(t,zc,span,dd,gap){ // line, all-lane rows, two lanes, zig-zag or a jump arc
+ const v=vEst(dd),sp=Math.max(1.6,v*.045),r=Math.random(),ln=Math.floor(Math.random()*3),
+  nm=Math.min(8,Math.floor(span/sp),Math.floor(2*(13.5-Math.abs(zc))/sp)),half=v*JT/2;
+ if(r<.28&&half<=gap/2-3&&Math.abs(zc)+half<13.5){arcCoins(t,ln,zc,dd,true);return}
+ if(nm<3)return;
+ if(r<.42){const rows=Math.min(4,nm);for(let i=0;i<rows;i++)for(let l=0;l<3;l++)coinAt(t,LX[l],1,zc+(i-(rows-1)/2)*sp*1.25)}
+ else if(r<.54){const a=Math.floor(Math.random()*2),rows=Math.min(5,nm);for(let i=0;i<rows;i++)for(let l=a;l<=a+1;l++)coinAt(t,LX[l],1,zc+(i-(rows-1)/2)*sp)}
+ else if(r<.74&&nm>=4){let l=ln;for(let i=0;i<nm;i++){coinAt(t,LX[l],1,zc+(i-(nm-1)/2)*sp);if(i%2===1)l=l===1?(Math.random()<.5?0:2):1}}
+ else coinRun(t,zc,Math.min(nm,7),ln,sp);
+}
+function side(t,w,z,dd){ // later in the run: a smaller obstacle in a free lane next to the main one
+ const fr=[0,1,2].filter(x=>!GEN.lane.includes(x));if(!fr.length)return;const ln=pick(fr);
+ if(w.deco==='tree')item(t,rockO(ln,z),'low');
+ else if(w.deco==='water'){const nmz=['Barrel 1','Crate 1'].filter(n=>PW[n]),o=nmz.length?pw(t,pick(nmz),LX[ln],z,1.25,0):mk('box',0x6b4423,LX[ln],.45,z,1.6,.9,.8);item(t,o,'low')}
+ else{const o=new THREE.Group();for(const dx of[-.5,0,.5]){const q=pc('Cone',.7,'y');if(q){q.position.set(dx,0,0);o.add(q)}}
+  if(!o.children.length)o.add(mk('box',0xd9382b,0,.45,0,1.6,.9,.5));o.position.set(LX[ln],0,z);item(t,o,'low');o.userData.h=.7}
+}
 function rockO(ln,z){
  if(PR.Rock_Medium_1&&PR.Rock_Medium_3){const rk=PR[Math.random()<.5?'Rock_Medium_1':'Rock_Medium_3'].clone(true);rk.scale.setScalar(.5);rk.position.set(LX[ln],.1,z);rk.rotation.y=Math.random()*6.3;return rk}
  const m=mk('cyl',0x6b4423,LX[ln],.45,z,.8,2,.8);m.rotation.z=Math.PI/2;return m;
@@ -576,7 +649,7 @@ function carEv(t,z,big){ // small sedans are short enough to jump; tall vehicles
  let nm,L;
  if(big){const a=BGC.filter(b=>PC[b[0]]);if(a.length){const b=pick(a);nm=b[0];L=b[1]}else big=false}
  if(!big){nm=pick(SMC);L=3.4}
- const c=pc(nm,L,'z'),l=Math.floor(Math.random()*3);
+ const c=pc(nm,L,'z'),l=Math.floor(Math.random()*3);GEN.lane=[l];
  if(!c){item(t,mk('box',0xd9382b,LX[l],.45,z,2,.9,.5),'low');return}
  const onc=z<=-3&&Math.random()<.4,H=new THREE.Box3().setFromObject(c).max.y,jp=H<=1.35;
  c.rotation.y=onc?0:Math.PI;c.position.set(LX[l],0,z);item(t,c,jp?'low':'wall');
@@ -584,15 +657,15 @@ function carEv(t,z,big){ // small sedans are short enough to jump; tall vehicles
  if(!jp){c.userData.top=Math.max(2.2,H+.1);GEN.free=[0,1,2].filter(x=>x!==l)}
 }
 function placeEv(t,e,z,dd,prev){
- const f=Math.min(1,dd/5000);
+ const f=Math.min(1,dd/3500);
  switch(e.k){
- case'rock':for(const ln of lanesN(nLn(dd,3)))item(t,rockO(ln,z),'low');break;
- case'fire':for(const ln of lanesN(Math.random()<.35*f?2:1)){const r=burnLog(),g=r[0];r[1].forEach(q=>t.userData.fl.push(q));g.position.set(LX[ln],0,z);item(t,g,'fire')}break;
+ case'rock':{const L=lanesN(nLn(dd,3));GEN.lane=L;for(const ln of L)item(t,rockO(ln,z),'low');break}
+ case'fire':{const L=lanesN(Math.random()<.35*f?2:1);GEN.lane=L;for(const ln of L){const r=burnLog(),g=r[0];r[1].forEach(q=>t.userData.fl.push(q));g.position.set(LX[ln],0,z);item(t,g,'fire')}break}
  case'root':{
-  const P=[[0],[1],[2],[0,2],[0,1],[1,2]],two=Math.random()<.2+.4*f;
+  const P=[[0],[1],[2],[0,2],[0,1],[1,2]],two=Math.random()<.2+.5*f;
   let c=P.filter(a=>(a.length===2)===two).sort(()=>Math.random()-.5);
   c=c.filter(a=>{const fr=[0,1,2].filter(x=>!a.includes(x));return GEN.cls!=='W'||fr.some(q=>prev.some(b=>Math.abs(q-b)<=1))});
-  const pat=c.length?c[0]:[1];GEN.free=[0,1,2].filter(x=>!pat.includes(x));
+  const pat=c.length?c[0]:[1];GEN.lane=pat;GEN.free=[0,1,2].filter(x=>!pat.includes(x));
   for(const ln of pat){const g=rootObj();g.scale.set(.55,1.25,.55);g.position.set(LX[ln],0,z);item(t,g,'wall');g.userData.top=2.9}
   break}
  case'fall':
@@ -602,8 +675,8 @@ function placeEv(t,e,z,dd,prev){
    g.position.z=z;item(t,g,'high');
   }else item(t,mk('box',0x777777,0,2.2,z,7,.8,.8),'high');
   break;
- case'crate':for(const ln of lanesN(nLn(dd,3))){
-  const nmz=['Barrel 1','Crate 1'].filter(n=>PW[n]),o=nmz.length?pw(t,pick(nmz),LX[ln],z,1.25,0):mk('box',0x6b4423,LX[ln],.45,z,1.6,.9,.8);item(t,o,'low')}break;
+ case'crate':{const L=lanesN(nLn(dd,3));GEN.lane=L;for(const ln of L){
+  const nmz=['Barrel 1','Crate 1'].filter(n=>PW[n]),o=nmz.length?pw(t,pick(nmz),LX[ln],z,1.25,0):mk('box',0x6b4423,LX[ln],.45,z,1.6,.9,.8);item(t,o,'low')}break}
  case'gate':{
   const g=new THREE.Group();
   g.add(mk('box',0x5a3f26,0,2.2,0,7.4,.35,.35));
@@ -612,15 +685,15 @@ function placeEv(t,e,z,dd,prev){
   g.position.z=z;item(t,g,'high');break}
  case'carS':carEv(t,z,false);break;
  case'carB':carEv(t,z,true);break;
- case'dump':for(const ln of lanesN(nLn(dd,2))){
+ case'dump':{const L=lanesN(nLn(dd,2));GEN.lane=L;for(const ln of L){
   const k=Math.random();let o2=null,h=.7;
   if(k<.45){o2=pc('Dumpster',1.0,'y');if(o2)o2.rotation.y=Math.PI/2;h=.9}
   else if(PC['Cone']){o2=new THREE.Group();for(const dx of[-.55,0,.55]){const c=pc('Cone',.7,'y');if(c){c.position.set(dx,0,(Math.random()-.5)*.5);o2.add(c)}}}
   if(!o2)o2=mk('box',0xd9382b,0,.45,0,2,.9,.5);
-  o2.position.set(LX[ln],0,z);item(t,o2,'low');o2.userData.h=h}break;
+  o2.position.set(LX[ln],0,z);item(t,o2,'low');o2.userData.h=h}break}
  case'pot':{
   const put1=(ln,zz)=>{const g=potV()[Math.floor(Math.random()*5)].clone(true);g.scale.x=Math.random()<.5?-1:1;g.position.set(LX[ln],0,zz);item(t,g,'hole');if(Math.random()<.6){const c=pc('Cone',.8,'y');if(c){c.position.set(LX[ln]+(Math.random()<.5?-1:1)*1.05,0,zz-1.5);t.add(c)}}};
-  const l=Math.floor(Math.random()*3);put1(l,z);
+  const l=Math.floor(Math.random()*3);GEN.lane=[l];put1(l,z);
   if(dd>800&&Math.random()<.2+.3*f&&z-6>=-13){put1((l+1+Math.floor(Math.random()*2))%3,z-6);return 6}
   break}
  case'bridge':bridge(t,z);break;
@@ -629,21 +702,23 @@ function placeEv(t,e,z,dd,prev){
 }
 function genTile(t,idx,w){
  const base=(idx-1)*TL;
- if(idx===2)coinRun(t,base-27,5,1); // a first coin line ahead of the runner
+ if(idx===2)coinRun(t,base-27,6,1); // a first coin line ahead of the runner
  if(GEN.next<base-12)GEN.next=base-12;
  let guard=0;
  while(GEN.next<=base+12&&guard++<4){
   const e=evPick(w,GEN.next);let z=base-GEN.next;const lim=14-e.hl;
   if(z<-lim){GEN.next=base+TL-12;break} // does not fit in this tile: try again in the next one (same tile = same world)
   if(z>lim)z=lim;
-  const dd=base-z,prev=GEN.free;GEN.free=[0,1,2];
+  const dd=base-z,prev=GEN.free,pgap=GEN.lastGap||20,f2=Math.max(0,Math.min(1,(dd-1500)/3500));
+  GEN.free=[0,1,2];GEN.lane=[];
   const ext=placeEv(t,e,z,dd,prev)||0;
+  if(dd>1500&&(e.c==='J'||e.c==='W')&&GEN.lane.length&&GEN.lane.length<3&&Math.random()<.15+.4*f2)side(t,w,z,dd);
   GEN.hist.push([e.k,e.c]);if(GEN.hist.length>3)GEN.hist.shift();GEN.cls=e.c;
-  const gap=Math.max(13,vEst(dd)*(1.15-.35*Math.min(1,dd/6000)))*e.gm,n=Math.min(6,Math.floor((gap-11)/1.6));
-  const zc=base-(dd+ext+gap/2);
-  if(dd>=GEN.pu&&Math.abs(zc)<11&&(PUI||Math.random()<.6)){puAt(t,w,zc,Math.floor(Math.random()*3));GEN.pu=PUI?0:dd+400+Math.random()*350}
-  else if(n>=3&&Math.random()<.6){if(Math.abs(zc)+(n-1)*.8<14)coinRun(t,zc,n,Math.floor(Math.random()*3))}
-  GEN.next=dd+ext+gap;
+  const vv=vEst(dd),gap=Math.max(13,Math.max(vv*.5,Math.min(vv*(1.15-.15*Math.min(1,dd/1500)-.5*f2),30-8*f2)))*e.gm,zc=base-(dd+ext+gap/2);
+  if(e.c==='J'&&dd>250&&GEN.lane.length&&Math.random()<.5)arcOver(t,pick(GEN.lane),z,dd,Math.min(pgap,gap+ext));
+  if(dd>=GEN.pu&&Math.abs(zc)<11&&(PUI||Math.random()<.6)){puAt(t,w,zc,Math.floor(Math.random()*3));GEN.pu=PUI?0:dd+300+Math.random()*250}
+  else if(Math.abs(zc)<13&&gap>=18&&Math.random()<.8)coinPat(t,zc,gap-11,dd,gap);
+  GEN.lastGap=gap+ext;GEN.next=dd+ext+gap;
  }
 }
 
@@ -749,7 +824,7 @@ function update(dt){
    const wz=t.position.z+m.position.z;
    if(Math.abs(wz)>(ty==='coin'&&mag>0?1.6:(m.userData.hl||.7)))continue;
    const same=Math.abs(m.position.x-px)<1.1;
-   if(ty==='coin'){if(same&&(mag>0?py<3:py<.75)){m.userData.type=null;m.visible=false;coins+=cm;$('co').textContent='🪙 '+coins}}
+   if(ty==='coin'){const cy=m.userData.cy||1;if(same&&(mag>0?py<3:(py>cy-1.35&&py<cy-.25))){m.userData.type=null;m.visible=false;coins+=cm;$('co').textContent='🪙 '+coins}}
    else if(ty==='pu'){if(same&&py<3){m.userData.type=null;m.visible=false;grab(m.userData.k,m.userData.n)}}
    else if(ty==='high'){if(sl<=0&&py<(m.userData.top||99)&&hit())return}
    else if(ty==='low'){if(same&&py<(m.userData.h||.8)&&hit())return}
@@ -759,8 +834,7 @@ function update(dt){
   }
  }
  fxInit();FX.position.set(px,py,0);
- AU.m.visible=mag>0;if(mag>0)AU.m.scale.setScalar(3+Math.sin(performance.now()/180)*.3);
- AU.b.visible=bootT>0;MT.visible=matT>0||hov>.05;if(MT.visible)waveMat(MT,performance.now()/1000);
+ AU.b.visible=bootT>0;MT.visible=matT>0||hov>.05;if(MT.visible)waveMat(MT,performance.now()/1000);heldFx(performance.now()/1000);
  P.visible=inv<=0||Math.floor(inv*12)%2===0;puHud();
  $('sc').innerHTML=Math.floor(score)+'<small>'+Math.floor(dist)+' m</small>';
 }
