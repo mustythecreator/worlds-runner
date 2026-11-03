@@ -1,0 +1,17 @@
+{
+ "coral":[{"f":"Reef_Set3.glb","size":1.1,"split":1},{"f":"Reef_Set5.glb","size":1.4,"split":1},{"f":"Reef_Set6.glb","size":1.0,"split":1}],
+ "rock":[{"f":"Reef_Set4.glb","size":1.0,"split":1}],
+ "plant":[{"f":"Reef_Set2.glb","size":1.1,"split":1}],
+ "shell":[{"f":"Reef_Set1.glb","size":0.6,"split":1}],
+ "fish":[
+  {"f":"Clownfish.glb","n":"Clownfish","sc":0.095},
+  {"f":"Blue_Tang.glb","n":"Blue Tang","sc":0.146},
+  {"f":"Butterfly_Fish.glb","n":"Butterfly Fish","sc":0.125},
+  {"f":"Coral_Grouper.glb","n":"Coral Grouper","sc":0.19},
+  {"f":"Cardinal_Fish.glb","n":"Cardinal Fish","sc":0.09},
+  {"f":"Black_Lion_Fish.glb","n":"Black Lion Fish","sc":0.13},
+  {"f":"Cowfish.glb","n":"Cowfish","sc":0.107},
+  {"f":"Sunfish.glb","n":"Sunfish","sc":0.28},
+  {"f":"Whale.glb","n":"Whale","sc":0.45,"old":1,"big":1}
+ ]
+}
