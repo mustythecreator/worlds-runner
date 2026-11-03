@@ -40,7 +40,7 @@ canvas{display:block}
 <div id="st">Stumbled! Avoid the next one</div>
 <div id="msg"><h1>Worlds Runner</h1><p>Swipe ← → to change lane</p><p>Swipe ↑ to jump · ↓ to slide</p><p>Double-tap = use a hover mat if you own one · tap a stored icon to use it</p><p><b>Tap to start</b></p><p><button id="skin" style="font:600 17px sans-serif;padding:10px 18px;border-radius:22px;border:1px solid #fff8;background:#0006;color:#fff">Runner: Hero  ▶</button></p>
 <p id="dbg2" style="font-size:12px;opacity:.8;max-width:90%;word-break:break-all;margin:2px 0"></p>
-<p id="dbg" style="font-size:13px;opacity:.85;max-width:90%;word-break:break-all">v9 · loading character…</p></div>
+<p id="dbg" style="font-size:13px;opacity:.85;max-width:90%;word-break:break-all">v10 · loading character…</p></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
@@ -314,7 +314,8 @@ function roadTex(w){
  if(w.deco==='water')return w.tex=woodTex();
  if(w.deco==='reef'){
   const st=sandTex();w.tex=st;
-  TXL.load('assets/textures/Sand_1K-JPG_Color.jpg',r=>{r.wrapS=r.wrapT=THREE.RepeatWrapping;r.repeat.set(2,8);r.anisotropy=AX;if(w.mat){w.mat.map=r;w.mat.needsUpdate=true}},null,()=>{});
+  TXL.load('assets/textures/Ground059_1K-JPG_Color.jpg',r=>{r.wrapS=r.wrapT=THREE.RepeatWrapping;r.repeat.set(2,8);r.anisotropy=AX;if(w.mat){w.mat.map=r;w.mat.needsUpdate=true}
+   const r2=r.clone();r2.needsUpdate=true;r2.repeat.set(3,10);const sm=reefSide();sm.map=r2;sm.needsUpdate=true},null,()=>{});
   return st;
  }
  const jg=w.deco==='tree',c=document.createElement('canvas');c.width=256;c.height=960;const g=c.getContext('2d');
@@ -374,7 +375,7 @@ const dbg=t=>{const d=document.getElementById('dbg');if(d)d.textContent=t};
 THREE.DefaultLoadingManager.onError=u=>dbg('✗ could not load: '+u);
 let ready=false;
 THREE.DefaultLoadingManager.onProgress=(u,i,t)=>{if(!ready)dbg('Loading '+i+' / '+t+' files…')};
-THREE.DefaultLoadingManager.onLoad=()=>{ready=true;dbg('v9 · ✓ ready')};
+THREE.DefaultLoadingManager.onLoad=()=>{ready=true;dbg('v10 · ✓ ready')};
 THREE.DefaultLoadingManager.setURLModifier(u=>u.indexOf('/superhero/')<0?u:u.replace('T_Eye_Normal_png.png','T_Eye_Normal.png').replace('T_Hair_1_BaseColor.png','T_Hair_1_BaseColor_png.png').replace('T_Hair_1_Normal_png.png','T_Hair_1_Normal.png'));
 const GL=new THREE.GLTFLoader();
 // Jungle props (Quaternius Stylized Nature MegaKit); old shapes stay as fallback
@@ -914,9 +915,25 @@ function genTile(t,idx,w){
 
 // ---- Reef (4th world, underwater). Procedural coral/kelp now; Coral Reef Kit models in assets/reef/ (listed in list.json) are used when present
 const REEF={coral:[],plant:[],rock:[],shell:[]},REEFSZ={coral:1.5,plant:2.2,rock:1.4,shell:.5};
+const REEFF=[]; // reef fish that loaded: {n,sc,old,big}
+function fixReef(root){root.traverse(o=>{if(!o.isMesh)return;(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{m.metalness=0;m.roughness=.8;if(m.emissiveMap)m.emissiveIntensity=.4;m.needsUpdate=true})})}
+function pickSwim(an){return an.find(a=>/swimming_normal/i.test(a.name))||an.find(a=>/swim/i.test(a.name))||an[0]}
 fetch('assets/reef/list.json').then(r=>r.ok?r.json():null).then(j=>{
  if(!j)return;
- for(const cat of Object.keys(REEF))for(const f of(j[cat]||[]))GLQ.load('assets/reef/'+encodeURIComponent(f),g=>{REEF[cat].push(fitModel(g.scene,REEFSZ[cat],'base'))},null,()=>{});
+ for(const cat of['coral','plant','rock','shell'])for(const e of(j[cat]||[])){
+  const it=typeof e==='string'?{f:e}:e,size=it.size||REEFSZ[cat];
+  GLQ.load('assets/reef/'+encodeURIComponent(it.f),g=>{
+   fixReef(g.scene);const root=g.scene;
+   if(it.split){ // a "set" holds several pieces in a row: one template per distinct piece
+    const kids=(root.children.length===1&&root.children[0].children.length>1)?root.children[0].children:root.children,seen={};
+    for(const k of kids){const key=k.isMesh?k.geometry.attributes.position.count:k.uuid;if(seen[key])continue;seen[key]=1;
+     const c=k.clone(true);c.position.set(0,0,0);const w=new THREE.Group();w.add(c);REEF[cat].push(fitModel(w,size,'base'))}
+   }else REEF[cat].push(fitModel(root,size,'base'));
+  },null,()=>{});
+ }
+ for(const e of(j.fish||[]))GLQ.load('assets/reef/'+encodeURIComponent(e.f),g=>{
+  PW[e.n]={s:g.scene,a:[pickSwim(g.animations)].filter(Boolean)};REEFF.push({n:e.n,sc:e.sc,old:!!e.old,big:!!e.big});
+ },null,()=>{});
 }).catch(()=>{});
 function sandTex(){
  const c=document.createElement('canvas');c.width=256;c.height=960;const g=c.getContext('2d');
@@ -1033,8 +1050,14 @@ function rprops(t,idx){ // light rays, bubbles, fish
  const R=Math.random;
  for(let i=0;i<3;i++){const m=new THREE.Mesh(G.plane,rayM());m.scale.set(2.5+R()*2,26,1);m.position.set((R()-.5)*16,10,(R()-.5)*26);m.rotation.set(0,R()*3,.28+R()*.1);m.userData={kind:'ray',p:R(),sp:0,rz:m.rotation.z};t.add(m);t.userData.cr.push(m)}
  for(let i=0;i<14;i++){const b=new THREE.Sprite(bubM()),sz=.12+R()*.3;b.scale.set(sz,sz,1);b.userData={kind:'bub',x:(R()<.5?-1:1)*(1.5+R()*8),z:(R()-.5)*28,p:R(),sp:.07+R()*.1};t.add(b);t.userData.cr.push(b)}
- for(let i=0;i<4;i++){const sd=R()<.5?-1:1;crt(t,'Fish',.2+R()*.12,{kind:'glide',x:sd*(4.5+R()*7),y:1+R()*5,z:(R()-.5)*20,p:R(),sp:.15+R()*.15,ry:sd>0?-1.57:1.57,dir:sd>0?1:-1})}
- if(R()<.45){const sd=R()<.5?-1:1;crt(t,R()<.5?'Manta ray':'Shark',.28,{kind:'glide',x:sd*(7+R()*5),y:3+R()*3,z:(R()-.5)*14,p:R(),sp:.1+R()*.08,ry:sd>0?-1.57:1.57,dir:sd>0?1:-1})}
+ const sch=REEFF.filter(q=>!q.big),big=REEFF.filter(q=>q.big);
+ if(sch.length){ // a school of 3 and a lone fish
+  const f=pick(sch),sd=R()<.5?-1:1,dir=sd>0?1:-1,x0=sd*(4.5+R()*6),y0=1+R()*4,z0=(R()-.5)*18,p=R(),sp=.15+R()*.12;
+  for(let i=0;i<3;i++)crt(t,f.n,f.sc*(.85+R()*.3),{kind:'glide',x:x0+(R()-.5)*1.6,y:y0+(R()-.5)*1.2,z:z0+(R()-.5)*2.4,p,sp,ry:dir>0?0:Math.PI,dir});
+  const f2=pick(sch),sd2=-sd,d2=sd2>0?1:-1;crt(t,f2.n,f2.sc,{kind:'glide',x:sd2*(4.5+R()*7),y:1+R()*5,z:(R()-.5)*20,p:R(),sp:.15+R()*.15,ry:d2>0?0:Math.PI,dir:d2});
+ }else for(let i=0;i<4;i++){const sd=R()<.5?-1:1;crt(t,'Fish',.2+R()*.12,{kind:'glide',x:sd*(4.5+R()*7),y:1+R()*5,z:(R()-.5)*20,p:R(),sp:.15+R()*.15,ry:sd>0?-1.57:1.57,dir:sd>0?1:-1})}
+ if(R()<.4){const sd=R()<.5?-1:1;crt(t,R()<.5?'Manta ray':'Shark',.28,{kind:'glide',x:sd*(7+R()*5),y:3+R()*3,z:(R()-.5)*14,p:R(),sp:.1+R()*.08,ry:sd>0?-1.57:1.57,dir:sd>0?1:-1})}
+ if(big.length&&R()<.2){const wf=pick(big),sd=R()<.5?-1:1;crt(t,wf.n,wf.sc,{kind:'glide',x:sd*(11+R()*4),y:4+R()*3,z:(R()-.5)*10,p:R(),sp:.06,ry:wf.old?(sd>0?-1.57:1.57):(sd>0?0:Math.PI),dir:sd>0?1:-1})}
 }
 
 function build(t,idx){
